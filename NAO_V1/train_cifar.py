@@ -27,7 +27,7 @@ parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10,
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--eval_batch_size', type=int, default=500)
-parser.add_argument('--epochs', type=int, default=600)
+parser.add_argument('--epochs', type=int, default=50)#600
 parser.add_argument('--layers', type=int, default=6)
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=36)
@@ -221,9 +221,9 @@ def main():
         epoch += 1
         is_best = False
         if valid_acc_top1 > best_acc_top1:
-            best_acc_top1 = valid_acc_top1
-            is_best = True
-        utils.save(args.output_dir, args, model, epoch, step, optimizer, best_acc_top1, is_best)
+          best_acc_top1 = valid_acc_top1
+          is_best = True
+          utils.save(args.output_dir, args, model, epoch, step, optimizer, best_acc_top1, is_best)
         
 
 if __name__ == '__main__':

@@ -85,7 +85,13 @@ class Node(nn.Module):
         elif x_op == 15:
             self.x_op = OPERATIONS_large[x_op](5, stride=x_stride, padding=2)
             x_shape = [x_shape[0] // x_stride, x_shape[1] // x_stride, channels]
-        
+        elif x_op ==16:
+            self.x_op = OPERATIONS_large[x_op](channels,channels,3,3,x_stride)
+            x_shape = [x_shape[0] // x_stride, x_shape[1] // x_stride, channels]
+        elif x_op ==17:
+            self.x_op = OPERATIONS_large[x_op](channels,channels,3,3,x_stride)
+            x_shape = [x_shape[0] // x_stride, x_shape[1] // x_stride, channels]
+
         y_stride = stride if y_id in [0, 1] else 1
         if y_op == 0:
             self.y_op = OPERATIONS[y_op](channels, channels, 3, y_stride, 1)
@@ -141,7 +147,13 @@ class Node(nn.Module):
         elif y_op == 15:
             self.y_op = OPERATIONS_large[y_op](5, stride=y_stride, padding=2)
             y_shape = [y_shape[0] // y_stride, y_shape[1] // y_stride, channels]
-        
+        elif y_op == 16:
+            self.y_op = OPERATIONS_large[y_op](channels,channels,3,3,y_stride)
+            y_shape = [y_shape[0] // y_stride, y_shape[1] // y_stride, channels]
+        elif y_op == 17:
+            self.y_op = OPERATIONS_large[y_op](channels,channels,3,3,y_stride)
+            y_shape = [y_shape[0] // y_stride, y_shape[1] // y_stride, channels]
+
         assert x_shape[0] == y_shape[0] and x_shape[1] == y_shape[1]
         self.out_shape = list(x_shape)
         

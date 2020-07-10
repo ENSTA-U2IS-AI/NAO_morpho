@@ -335,6 +335,67 @@ class FinalCombine(nn.Module):
         out = torch.cat([states[i] for i in self.concat], dim=1)
         return out
 
+class Pseudo_Morphology(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=5, degree=5, stride=1):
+        '''
+        in_channels: scalar
+        out_channels: scalar, the number of the morpholigical neure.
+        kernel_size: scalar, the spatial size of the morpholigical neure.
+        soft_max: bool, using the soft max rather the torch.max(), ref: Dense Morphological Networks: An Universal Function Approximator (Mondal et al. (2019)).
+        beta: scalar, used by soft_max.
+        type: str, dilation2d or erosion2d.
+        '''
+        super(Pseudo_Morphology, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.pading = kernel_size// 2
+        self.type = type
+        self.degree = degree
+        self.stride = stride 
+        self.convmorph = nn.Conv2d(in_channels, out_channels, kernel_size, self.stride, padding=self.pading)
+        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+        self.bn = nn.BatchNorm2d(out_channels, affine=False)
+        self.pool = nn.AvgPool2d(3, 2, 1, count_include_pad=False)
+        self.relu =  nn.ReLU()
+
+    def forward(self, x):
+        '''
+        x: tensor of shape (B,C,H,W)
+        '''
+        x = self.bn(x)
+        x_tmp = (x ** (self.degree )) #/ ((x ** (self.degree)).sum())
+        y = self.convmorph(x_tmp)# / self.degree
+        if self.stride==2:
+          x = self.pool(x)
+        y = torch.max(y, x)
+        y = self.bn(y)
+        return y
+        
+class Pseudo_Shuff(nn.Module):
+  def __init__(self, in_channels, out_channels, kernel_size=5, degree=5, stride=1, type=None):
+      super(Pseudo_Shuff, self).__init__()
+      self.in_channels = in_channels
+      self.out_channels = out_channels
+      self.kernel_size = kernel_size
+      self.pading = kernel_size// 2
+      self.type = type
+      self.degree = degree
+      self.stride = stride 
+      self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=self.stride,padding=self.pading)
+      self.pixel_shuffle = nn.PixelShuffle(kernel_size)
+      self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+      self.bn = nn.BatchNorm2d(out_channels, affine=False)
+      
+  def forward(self, x):
+      '''
+      x: tensor of shape (B,C,H,W)
+      '''
+      x = self.bn(x)
+      y = self.convmorph(x)# / self.degree
+      y = self.pixel_shuffle(y)
+      y = self.pool_(y)
+      return y
 
 OPERATIONS = {
     0: SepConv, # 3x3
@@ -355,4 +416,6 @@ OPERATIONS_large = {
     13: nn.AvgPool2d, # 2x2
     14: nn.AvgPool2d, # 3x3
     15: nn.AvgPool2d, # 5x5
+    16: Pseudo_Morphology,#mor_dil_3x3
+    17: Pseudo_Shuff, #dil_shuf_3x3
 }
