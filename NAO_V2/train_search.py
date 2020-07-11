@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 from model import NASNetworkCIFAR, NASNetworkImageNet
 from model_search import NASWSNetworkCIFAR, NASWSNetworkImageNet
-from operations import OPERATIONS_search_small, OPERATIONS_search_middle
+from operations import OPERATIONS_search_small, OPERATIONS_search_middle,OPERATIONS_small
 from controller import NAO
 
 parser = argparse.ArgumentParser(description='NAO Search')
@@ -648,7 +648,8 @@ def main():
         args.num_class = 10
     
     if args.search_space == 'small':
-        OPERATIONS = OPERATIONS_search_small
+        # OPERATIONS = OPERATIONS_search_small
+        OPERATIONS = OPERATIONS_small#modify
     elif args.search_space == 'middle':
         OPERATIONS = OPERATIONS_search_middle
     args.child_num_ops = len(OPERATIONS)
