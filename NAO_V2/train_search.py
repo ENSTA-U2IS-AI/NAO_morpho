@@ -665,9 +665,9 @@ def main():
             archs = f.read().splitlines()
             archs = list(map(utils.build_dag, archs))
             child_arch_pool = archs
-    elif os.path.exists(os.path.join(args.output_dir, 'arch_pool.1')):
+    elif os.path.exists(os.path.join(args.output_dir, 'arch_pool')):
         logging.info('Architecture pool is founded, loading')
-        with open(os.path.join(args.output_dir, 'arch_pool.1')) as f:
+        with open(os.path.join(args.output_dir, 'arch_pool')) as f:
             archs = f.read().splitlines()
             archs = list(map(utils.build_dag, archs))
             child_arch_pool = archs
@@ -704,8 +704,8 @@ def main():
         child_arch_pool = utils.generate_arch(args.controller_seed_arch, args.child_nodes, args.child_num_ops)  # [[[conv],[reduc]]]
     arch_pool = []
     arch_pool_valid_acc = []
-    # for i in range(4):
-    for i in range(2,4,1):
+    for i in range(4):
+    # for i in range(2,4,1):
         logging.info('Iteration %d', i)
 
         child_arch_pool_prob = []
