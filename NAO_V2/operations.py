@@ -556,8 +556,7 @@ OPERATIONS_small = {
     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
     3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1), 
     4: lambda c_in, c_out, stride, shape, affine: Identity() if stride == 1 else FactorizedReduce(c_in, c_out, shape, affine=affine),
-    # 5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
-    # 5: lambda c_in, c_out, stride, shape, affine: Pseudo_Morphology(c_in, c_out, 3, 3, stride), #mor_conv_3x3
+    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
 
@@ -567,8 +566,7 @@ OPERATIONS_search_small = {
     2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
     3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
     4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),
-    # 5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
-    # 5: lambda n, c_in, c_out, stride, affine: WSPseudo_Morphology(n, c_in, c_out, 3, 3, stride), #mor_conv_3x3
+    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
 
