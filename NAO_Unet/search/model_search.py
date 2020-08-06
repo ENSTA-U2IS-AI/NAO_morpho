@@ -5,7 +5,7 @@ from ops.genotype import DownOps,NormalOps,UpOps
 
 # customise the cell for segmentation
 class NodeSegmentation(nn.Module):
-    def __init__(self, search_space, channels, node_id, stride, drop_path_keep_prob=None,transpose=False):
+    def __init__(self,search_space,channels,node_id,stride,initial_id_for_up_or_down,drop_path_keep_prob=None,transpose=False):
         super(NodeSegmentation, self).__init__()
         self.search_space = search_space
         self.channels = channels
@@ -14,7 +14,8 @@ class NodeSegmentation(nn.Module):
         self.x_op = nn.ModuleList()
         self.y_op = nn.ModuleList()
         self.transpose=transpose
-        possible_connection_nums = node_id
+        possible_connection_nums = node_id+2
+        self.initial_id_for_up_or_down = initial_id_for_up_or_down
 
         if search_space == 'small':
             OPERATIONS = OPERATIONS_search_small
@@ -23,24 +24,100 @@ class NodeSegmentation(nn.Module):
         else:
             OPERATIONS = OPERATIONS_search_small
 
-        if self.stride>=2:
-            pris=UpOps if transpose else DownOps
-        else:
-            pris=NormalOps
+        # if node_id == 0:
+        #   if self.transpose==True:
+        #     print(1)
+        #     for i in range(5,11,1):
+        #       if 5<=i<9:
+        #         stride = 1
+        #       else:
+        #         stride = 2
+        #         print(i)
+        #       self.x_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+        #       self.y_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+        #   else:
+        #     stride=2
+        #     for i in range(0,5,1):
+        #       self.x_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+        #       self.y_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+        # else:
+        #   if self.transpose==True:
+        #     for i in range(5,11,1):
+        #       if 5<=i<9:
+        #         stride = 1
+        #       else:
+        #         stride = 2
+        #       print(i)
+        #       self.x_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+        #       self.y_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+        #   else:
+        #     for i in range(0,9,1):
+        #       if 0<=i<5:
+        #         stride = 2
+        #       else:
+        #         stride =1
+        #       self.x_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+        #       self.y_op.append(OPERATIONS[i](possible_connection_nums, channels, channels, stride, True))
+          # for i in range(possible_connection_nums):
+          #   stride=2 if i>=self.initial_id_for_up_or_down and j<2 else 1
+          #   if transpose:
+          #     if stride==2:
+          #       pris = UpOps
+          #     else:
+          #       pris = NormalOps
+          #   else:
+          #     if stride==2:
+          #       pris = DownOps
+          #     else:
+          #       pris = NormalOps
+        # for i, item in OPERATIONS.items():
+        #   if node_id==0:
+        #     stride = 2
+        #   else:
+        #     if self.transpose==True:
+        #       if 5<=i<9:
+        #         stride = 1
+        #       else:
+        #         stride = 2
+        #     else:
+        #       if 0<=i<5:
+        #         stride = 2
+        #       else:
+        #         stride =1
+        #   self.x_op.append(item(possible_connection_nums, channels, channels, stride, True))
+        #   self.y_op.append(item(possible_connection_nums, channels, channels, stride, True))
+        for i, item in OPERATIONS.items():
+          if 5<=i<9:
+            stride = 1
+          else:
+            stride = 2
+          self.x_op.append(item(possible_connection_nums, channels, channels, stride, True))
+          self.y_op.append(item(possible_connection_nums, channels, channels, stride, True))
+        # if self.stride>=2:
+        #     pris=UpOps if transpose else DownOps
+        # else:
+        #     pris=NormalOps
 
-        for pri in pris:
-            self.x_op.append(OPERATIONS[pri](possible_connection_nums, channels, channels, stride, True))
-            self.y_op.append(OPERATIONS[pri](possible_connection_nums, channels, channels, stride, True))
+        # for pri in pris:
+        #     self.x_op.append(OPERATIONS[pri](possible_connection_nums, channels, channels, stride, True))
+        #     self.y_op.append(OPERATIONS[pri](possible_connection_nums, channels, channels, stride, True))
 
     def forward(self, x, x_id, x_op, y, y_id, y_op,bn_train=False):
         # this mean that only the inputs to the intermediate nodes exists the down sampling ops
         input_to_intermediate_node = []
-        stride = self.stride if x_id in [0, 1] else 1
-        x = self.x_op[x_op](x, x_id, stride,bn_train=bn_train)
-        stride = self.stride if y_id in [0, 1] else 1
-        y = self.y_op[y_op](y, y_id, stride,bn_train=bn_train)
-        input_to_intermediate_node+=x
-        input_to_intermediate_node+=y
+        if self.transpose==True:
+          stride = self.stride if x_id==1 else 1
+          x = self.x_op[x_op](x, x_id, stride,bn_train=bn_train)
+          stride = self.stride if y_id==1 else 1
+          y = self.y_op[y_op](y, y_id, stride,bn_train=bn_train)
+        else:
+          stride = self.stride if x_id in [0, 1] else 1
+          x = self.x_op[x_op](x, x_id, stride,bn_train=bn_train)
+          stride = self.stride if y_id in [0, 1] else 1
+          y = self.y_op[y_op](y, y_id, stride,bn_train=bn_train)
+
+        input_to_intermediate_node+=[x]
+        input_to_intermediate_node+=[y]
         out = sum(consistent_dim(input_to_intermediate_node))
         return out
       
@@ -69,31 +146,32 @@ class CellSegmentation(nn.Module):
 
         if self.type == 'down':
             self.preprocess0 = nn.Sequential(
-            nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2, affine=False,),
-            nn.BatchNorm2d(ch_prev_2)
+            nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2,bias=False),
+            nn.BatchNorm2d(channels)
         )
         else:
             self.preprocess0 = nn.Sequential(
-            nn.Conv2d(ch_prev_2, channels, kernel_size=1, affine=False,),
-            nn.BatchNorm2d(ch_prev_2)
+            nn.Conv2d(ch_prev_2, channels, kernel_size=1,bias=False),
+            nn.BatchNorm2d(channels)
         )
+        
         self.preprocess1 = nn.Sequential(
-            nn.Conv2d(ch_prev, channels, kernel_size=1, affine=False,),
-            nn.BatchNorm2d(ch_prev_2)
+            nn.Conv2d(ch_prev, channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(channels)
         )
 
         self._ops = nn.ModuleList()
 
         # the prev_layers represents chs_prev_2, chs_prev and the channels represents chs
-        # initial_id_for_up_or_down=0 if self.type=='down' else 1
+        initial_id_for_up_or_down=0 if self.type=='down' else 1
         stride = 2
         for i in range(self.nodes):
           # for j in range(self.self.nums_inputs_to_intermediate_nodes+i):
           #     stride=2 if j>=initial_id_for_up_or_down and j<2 else 1
           if self.type=='up':
-              node = NodeSegmentation(search_space, channels, i, stride, drop_path_keep_prob, transpose=True)
+              node = NodeSegmentation(search_space, channels, i, stride,initial_id_for_up_or_down, drop_path_keep_prob, transpose=True)
           else:
-              node = NodeSegmentation(search_space, channels, i, stride, drop_path_keep_prob, )
+              node = NodeSegmentation(search_space, channels, i, stride,initial_id_for_up_or_down, drop_path_keep_prob, )
           self.ops.append(node)
 
     def forward(self, s0, s1, arch,bn_train=False):
@@ -114,7 +192,7 @@ class CellSegmentation(nn.Module):
 
 class NASUNetSegmentationWS(nn.Module):
     #args, classes, layers, nodes, channels, keep_prob, drop_path_keep_prob, use_aux_head, steps
-    def __init__(self, args, depth=4, classes=1, nodes=4, input_chs=3, chs=16, keep_prob=0.9, double_down_channel=True, use_softmax_head = False):
+    def __init__(self, args, depth=4, classes=1, nodes=4, input_chs=3, chs=16, keep_prob=0.9, double_down_channel=False, use_softmax_head=False):
         super(NASUNetSegmentationWS, self).__init__()
         self.args = args
         self.search_space = args.search_space
@@ -126,20 +204,20 @@ class NASUNetSegmentationWS(nn.Module):
         self.use_softmax_head=use_softmax_head
         self.multiplier = nodes
 
-        ch_prev_2, ch_prev, ch_curr = self._nodes_num * chs, self._nodes_num * chs, chs #chs = channels
+        ch_prev_2, ch_prev, ch_curr = self.nodes * chs, self.nodes * chs, chs #chs = channels
 
-        # s0 = 1×1 convolution
+        # s0 = 1×1 convolution [4c,h,w]
         self._stem0 = nn.Sequential(
             nn.Conv2d(input_chs, ch_prev_2, kernel_size=1, bias=False),
             nn.BatchNorm2d(ch_prev_2)
         )
-        # s1 = 3×3 convolution
+        # s1 = 3×3 convolution [4c,0.5h,0.5w]
         self._stem1 = nn.Sequential(
             nn.Conv2d(input_chs, ch_prev, kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(ch_prev)
         )
-        self.cells_down = nn.ModuleList
-        self.cells_up = nn.ModuleList
+        self.cells_down = nn.ModuleList()
+        self.cells_up = nn.ModuleList()
 
         path_recorder = []
         path_recorder += [ch_prev]
@@ -147,21 +225,21 @@ class NASUNetSegmentationWS(nn.Module):
 
         # this is the left part of U-Net (encoder) down sampling
         for i in range(depth):
-            ch_curr = 2*ch_curr if self._double_down_channel else ch_curr
-            cell_down = CellSegmentation(self._search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,self.keep_prob,type='down')
+            ch_curr = 2*ch_curr if self.double_down_channel else ch_curr
+            cell_down = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,self.keep_prob,type='down')
             self.cells_down +=[cell_down]
-            ch_prev_2,ch_prev = ch_prev,self._multiplier*ch_curr
+            ch_prev_2,ch_prev = ch_prev,self.multiplier*ch_curr
             path_recorder +=[ch_prev]
 
         # this is the right part of U-Net (decoder) up sampling
         for i in range(depth+1):
             ch_prev_2 = path_recorder[-(i+2)]
-            cell_up = CellSegmentation(self._search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,self.keep_prob,type='up')
+            cell_up = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,self.keep_prob,type='up')
             self.cells_up += [cell_up]
-            ch_prev = self._multiplier*ch_prev
-            ch_curr = ch_curr//2 if self._double_down_channel else ch_curr
+            ch_prev = self.multiplier*ch_curr
+            ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
-        self.ConvSegmentation = ConvNet(ch_prev, self._classes, kernel_size=1, dropout_rate=0.1)
+        self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
 
         if use_softmax_head:
             self.softmax = nn.Softmax(dim=1)
@@ -174,29 +252,38 @@ class NASUNetSegmentationWS(nn.Module):
                 nn.init.kaiming_normal_(w.data)
 
     def forward(self, input, arch, bn_train=False):
-        # s0: remain the original image size
-        # s1: halve image size
+        # s0: [4c,h,w]
+        # s1: [4c,0.5g,0.5w]
         s0, s1 = self._stem0(input), self._stem1(input)
-        path_recorder = []
-
-        path_recorder.append(s0)
-        path_recorder.append(s1)
-
-        DownCell_arch = arch[:self.nodes*4] 
-        UpCell_arch = arch[self.nodes*4:]
-
+        cells_recorder = []
+        
+        cells_recorder.append(s0)
+        cells_recorder.append(s1)
+      
+        DownCell_arch,UpCell_arch=arch
+        # if isinstance(arch, str):
+        #     arch = list(map(int, arch.strip().split()))
+        # elif isinstance(arch, list) and len(arch) == 2:
+        #     arch = arch[0] + arch[1]
+            
+        # DownCell_arch = arch[:self.nodes*4] 
+        # UpCell_arch = arch[self.nodes*4:]
+        
         #the left part of U-Net
         for i, cell in enumerate(self.cells_down):
             s0,s1 = s1,cell(s0,s1,DownCell_arch,bn_train=bn_train)
-            path_recorder.append(s1)
-
+            cells_recorder.append(s1)
+            
+        
         #the right part of U-Net
         for i,cell in enumerate(self.cells_up):
-            s0 = path_recorder[-(i+2)] # get the chs_prev_prev
+            s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1,UpCell_arch,bn_train=bn_train)
+           
+          
 
         x = self.ConvSegmentation(s1)
 
-        if self._use_softmax_head:
+        if self.use_softmax_head:
             x = self.softmax(x)
         return x

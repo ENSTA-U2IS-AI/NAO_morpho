@@ -403,6 +403,7 @@ class NAODataset(torch.utils.data.Dataset):
         return len(self.inputs)
 
 
+
 def count_parameters_in_MB(model):
     return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
 
@@ -474,17 +475,60 @@ def sample_arch(arch_pool, prob=None):
     return arch
 
 
-def generate_arch(n, num_nodes, num_ops=7):
-    def _get_arch():
-        arch = []
-        for i in range(2, num_nodes+2):
-            p1 = np.random.randint(0, i)
-            op1 = np.random.randint(0, num_ops)
-            p2 = np.random.randint(0, i)
-            op2 = np.random.randint(0 ,num_ops)
-            arch.extend([p1, op1, p2, op2])
-        return arch
-    archs = [[_get_arch(), _get_arch()] for i in range(n)] #[[[DownSOps],[UpSOps]]]
+def generate_arch(n, num_nodes, num_ops=11):
+    def _get_down_arch():
+      arch = []
+      for i in range(2, num_nodes+2):
+        if i==2:
+          p1 = np.random.randint(0, i)
+          op1 = np.random.randint(0, 5)
+          p2 = np.random.randint(0, i)
+          if p2==p1:
+            p2 = 1-p1
+          op2 = np.random.randint(0 ,5)
+        else:
+          p1 = np.random.randint(0, i)
+          if 0<=p1<2:
+            op1 = np.random.randint(0, 5)
+          else:
+            op1 = np.random.randint(5, 9)
+          p2 = np.random.randint(0, i)
+          if 0<=p2<2:
+            op2 = np.random.randint(0 ,5)
+          else:
+            op2 = np.random.randint(5 ,9)
+        arch.extend([p1, op1, p2, op2])
+      return arch
+    def _get_up_arch():
+      arch = []
+      for i in range(2, num_nodes+2):
+        if i==2:
+          p1 = np.random.randint(0, i)
+          if p1==0:
+            op1 = np.random.randint(5, 9)
+          else:
+            op1 = np.random.randint(9, 11)
+          p2 = np.random.randint(0, i)
+          if p2==p1:
+            p2 = 1-p1
+          if p2==0:
+            op2 = np.random.randint(5 ,9)
+          else:
+            op2 = np.random.randint(9 ,11)
+        else:
+          p1 = np.random.randint(0, i)
+          if p1 == 1:
+            op1 = np.random.randint(9, 11)
+          else:
+            op1 = np.random.randint(5, 9)
+          p2 = np.random.randint(0, i)
+          if p2 == 1:
+            op2 = np.random.randint(9 ,11)
+          else:
+            op2 = np.random.randint(5 ,9)
+        arch.extend([p1, op1, p2, op2])
+      return arch
+    archs = [[_get_down_arch(), _get_up_arch()] for i in range(n)] #[[[DownSOps],[UpSOps]]]
     return archs
 
 
@@ -576,3 +620,93 @@ def generate_eval_points(eval_epochs, stand_alone_epoch, total_epochs):
         res.append(eval_point)
         eval_point += eval_epochs
     return res
+
+def determine_arch_valid(seq, nodes=B):
+    n = len(seq)
+
+    def down_cell(cell_seq):
+        for i in range(nodes):
+            p1 = cell_seq[4 * i] - 1
+            op1 = cell_seq[4 * i + 1] - 7
+            p2 = cell_seq[4 * i + 2] - 1
+            op2 = cell_seq[4 * i + 3] - 7
+            if i ==0:
+                if (p1<0 or p1>1):
+                    return False
+                if (p2<0 or p2>1):
+                    return False
+                if (op1>=5) or (op2>=5):
+                    return False
+                if p1 == p2:
+                    return False
+            else:
+                if 0<=p1<2:
+                    if op1>=5:
+                        return False
+                else:
+                    if op1>8 or op1<5:
+                        return False
+                if 0<=p2<2:
+                    if op2>=5:
+                        return False
+                else:
+                    if op2>8 or op2<5:
+                        return False
+
+        return True
+
+    def up_cell(cell_seq):
+        for i in range(nodes):
+            p1 = cell_seq[4 * i] - 1
+            op1 = cell_seq[4 * i + 1] - 7
+            p2 = cell_seq[4 * i + 2] - 1
+            op2 = cell_seq[4 * i + 3] - 7
+            if i ==0:
+                if p1==0 and p2!=1:
+                    return False
+                elif p2==0 and p1!=1:
+                    return False
+                elif p1==0 and p2==1:
+                    if op1 in [0,1,2,3,4,9,10]:
+                        return False
+                    if op2 in [i for i in range(0,9)]:
+                        return False
+                elif p1==1 and p2==0:
+                    if op2 in [0, 1, 2, 3, 4, 9, 10]:
+                        return False
+                    if op1 in [i for i in range(0, 9)]:
+                        return False
+                else:
+                    return False
+            else:
+                if p1==1:
+                    if op1 in [i for i in range(0, 9)]:
+                        return False
+                else:
+                    if op1 in [9,10]:
+                        return False
+                    if op1 in [0,1,2,3,4]:
+                        return False
+                if p2==1:
+                    if op2 in [i for i in range(0, 9)]:
+                        return False
+                else:
+                    if op2 in [9,10]:
+                        return False
+                    if op2 in [0,1,2,3,4]:
+                        return False
+        return True
+
+    down_seq = seq[:n // 2]
+    up_seq = seq[n // 2:]
+    down_arch = down_cell(down_seq)
+    up_arch = up_cell(up_seq)
+    if down_arch and up_arch:
+        print('the new generated arch is valid')
+        return True
+    else:
+        print('the new generated arch is Irregular')
+        return False
+
+
+
