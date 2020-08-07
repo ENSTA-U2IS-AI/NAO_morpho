@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ops.operations import OPERATIONS_search_small, OPERATIONS_search_middle, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet
+from ops.operations import OPERATIONS_search_small, OPERATIONS_search_middle, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout
 from ops.genotype import DownOps,NormalOps,UpOps
 
 # customise the cell for segmentation
@@ -192,7 +192,7 @@ class CellSegmentation(nn.Module):
 
 class NASUNetSegmentationWS(nn.Module):
     #args, classes, layers, nodes, channels, keep_prob, drop_path_keep_prob, use_aux_head, steps
-    def __init__(self, args, depth=4, classes=1, nodes=4, input_chs=3, chs=16, keep_prob=0.9, double_down_channel=False, use_softmax_head=False):
+    def __init__(self, args, depth=4, classes=1, nodes=4, input_chs=3, chs=16, keep_prob=0.9, double_down_channel=False, use_softmax_head=False,use_aux_head=True):
         super(NASUNetSegmentationWS, self).__init__()
         self.args = args
         self.search_space = args.search_space
@@ -203,6 +203,7 @@ class NASUNetSegmentationWS(nn.Module):
         self.double_down_channel=double_down_channel
         self.use_softmax_head=use_softmax_head
         self.multiplier = nodes
+        self.use_aux_head = use_aux_head
 
         ch_prev_2, ch_prev, ch_curr = self.nodes * chs, self.nodes * chs, chs #chs = channels
 
@@ -240,6 +241,9 @@ class NASUNetSegmentationWS(nn.Module):
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
         self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
+
+        if use_aux_head:
+            self.aux_output = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
 
         if use_softmax_head:
             self.softmax = nn.Softmax(dim=1)
@@ -283,6 +287,10 @@ class NASUNetSegmentationWS(nn.Module):
           
 
         x = self.ConvSegmentation(s1)
+
+        if self.use_aux_head:
+          x = self.aux_output(x)
+          x = interpolate(x, (h,w))
 
         if self.use_softmax_head:
             x = self.softmax(x)

@@ -1,5 +1,5 @@
 import torch.nn as nn
-from ops.operations import OPERATIONS_small, OPERATIONS_middle, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine
+from ops.operations import OPERATIONS_small, OPERATIONS_middle, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout
 import torch
 
 # customise the cell for segmentation
@@ -178,8 +178,8 @@ class NASUNetBSD(nn.Module):
 
         self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1)
 
-        # if use_aux_head:
-        #     self.aux_output_layer = FCNHead(ch_prev, nclass, nn.BatchNorm2d)
+        if use_aux_head:
+            self.aux_output = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
         if self.use_softmax_head:
           self.softmax = nn.Softmax(dim=1)
 
@@ -213,6 +213,10 @@ class NASUNetBSD(nn.Module):
             s1 = cell(s0,s1)
 
         x = self.ConvSegmentation(s1)
+        if self.use_aux_head:
+          x = self.aux_output(x)
+          x = interpolate(x, (h,w))
+
         if self.use_softmax_head:
-           x = self.softmax(x)
+          x = self.softmax(x)
         return x

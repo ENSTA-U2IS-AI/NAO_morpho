@@ -37,7 +37,7 @@ parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=16)
 parser.add_argument('--child_cutout_size', type=int, default=None)
 parser.add_argument('--child_grad_bound', type=float, default=5.0)
-parser.add_argument('--child_lr_max', type=float, default=1.0e-1)
+parser.add_argument('--child_lr_max', type=float, default=1.0e-2)
 parser.add_argument('--child_lr_min', type=float, default=3.0e-2)
 parser.add_argument('--child_keep_prob', type=float, default=1.0)
 parser.add_argument('--child_drop_path_keep_prob', type=float, default=0.9)
@@ -48,9 +48,9 @@ parser.add_argument('--child_lr', type=float, default=0.1)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=500)
+parser.add_argument('--controller_seed_arch', type=int, default=200)
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=50)
+parser.add_argument('--controller_new_arch', type=int, default=60)
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -134,12 +134,9 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=2, nodes=args.child_nodes, chs=args.child_channels, 
                   keep_prob=args.child_keep_prob,use_softmax_head=True)
     model = model.cuda()
-    # train_criterion = nn.BCEWithLogitsLoss().cuda()
-    # eval_criterion = nn.BCEWithLogitsLoss().cuda()
-    # train_criterion = nn.CrossEntropyLoss().cuda()
-    # eval_criterion = nn.CrossEntropyLoss().cuda()
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.10,0.90])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.10,0.90])).cuda()
+    
+    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     optimizer = torch.optim.SGD(
@@ -220,10 +217,10 @@ def child_valid(valid_queue, model, arch_pool, criterion):
 
 def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
     res = []
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.10,0.90])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.10,0.90])).cuda()
-    # train_criterion = nn.BCEWithLogitsLoss().cuda()
-    # eval_criterion = nn.BCEWithLogitsLoss().cuda()
+
+    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    
     objs = utils.AvgrageMeter()
     F1 = utils.AvgrageMeter()
     for i, arch in enumerate(archs):

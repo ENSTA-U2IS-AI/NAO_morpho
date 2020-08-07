@@ -647,6 +647,19 @@ class WSConvNet(nn.Module):
         x = self.bn(x)               # add batchnorm to the input 
         return x
 
+class Aux_dropout(nn.Module):
+    def __init__(self, in_channels, out_channels, norm_layer):
+        super(Aux_dropout, self).__init__()
+        inter_channels = in_channels // 4
+        self.conv = nn.Sequential(nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+                                    norm_layer(inter_channels),
+                                    nn.ReLU(),
+                                    nn.Dropout2d(0.1, False),
+                                    nn.Conv2d(inter_channels, out_channels, 1))
+
+    def forward(self, x):
+        return self.conv(x)
+
 """
 operation set for cell of U-net segmentation network
 DownOps = [
