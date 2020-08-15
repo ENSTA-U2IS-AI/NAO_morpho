@@ -109,7 +109,7 @@ class Decoder(nn.Module):
             if step % 2 == 0:  # sample index, should be in [1, index-1]
                 index = step // 2 % 10 // 2 + 3
                 symbols = decoder_outputs[-1][:, 1:index].topk(1)[1] + 1
-            else:  # sample operation, should be in [7, 11]
+            else:  # sample operation, should be in [7, 7+ops_num(o11)]
                 symbols = decoder_outputs[-1][:, 7:].topk(1)[1] + 7
             
             sequence_symbols.append(symbols)

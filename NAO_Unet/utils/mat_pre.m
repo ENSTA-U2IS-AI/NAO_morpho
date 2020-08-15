@@ -1,9 +1,9 @@
 clear all;
-path = ('G:\NAO_UNet\data\BSR\BSDS500\data\groundTruth\test\')
-d = dir('G:\NAO_UNet\data\BSR\BSDS500\data\groundTruth\test\*.mat')
-% B=[0 1 0
-%     1 1 1
-%     0 1 0];
+path = ('G:\NAO_UNet\data\BSR\BSDS500\data\groundTruth\train\')
+d = dir('G:\NAO_UNet\data\BSR\BSDS500\data\groundTruth\train\*.mat')
+B=[0 1 0
+    1 1 1
+    0 1 0];
 proportion = 0.0
 for i = 1:length(d)
     fileName{i} = d(i).name
@@ -15,7 +15,7 @@ for i = 1:length(d)
     end
 %     bmp = unit8(bmp)
  
-%     bmp_dilation = imdilate(bmp,B)
+    bmp = imdilate(bmp,B)
     imshow(bmp)
     numVal_1 = sum(sum(bmp));
     numVal_0 = length(find(bmp==0));

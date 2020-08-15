@@ -416,7 +416,7 @@ def save_checkpoint(state, is_best, save):
         shutil.copyfile(filename, best_filename)
       
 
-def save(model_path, args, model, epoch, step, optimizer, best_acc_top1, is_best=True):
+def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
     if hasattr(model, 'module'):
         model = model.module
     state_dict = {
@@ -425,7 +425,8 @@ def save(model_path, args, model, epoch, step, optimizer, best_acc_top1, is_best
         'epoch': epoch,
         'step': step,
         'optimizer': optimizer.state_dict(),
-        'best_acc_top1': best_acc_top1,
+        'best_OIS': best_OIS,
+        'best_ODS': best_ODS,
     }
     filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
     torch.save(state_dict, filename)
@@ -439,15 +440,16 @@ def save(model_path, args, model, epoch, step, optimizer, best_acc_top1, is_best
 def load(model_path):
     newest_filename = os.path.join(model_path, 'checkpoint.pt')
     if not os.path.exists(newest_filename):
-        return None, None, 0, 0, None, 0
+        return None, None, 0, 0, None, 0, 0
     state_dict = torch.load(newest_filename)
     args = state_dict['args']
     model_state_dict = state_dict['model']
     epoch = state_dict['epoch']
     step = state_dict['step']
     optimizer_state_dict = state_dict['optimizer']
-    best_acc_top1 = state_dict.get('best_acc_top1')
-    return args, model_state_dict, epoch, step, optimizer_state_dict, best_acc_top1
+    best_OIS = state_dict.get('best_OIS')
+    best_ODS = state_dict.get('best_ODS')
+    return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS
 
   
 def create_exp_dir(path, scripts_to_save=None):

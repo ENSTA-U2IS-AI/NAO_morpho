@@ -2,7 +2,7 @@ import sys
 import glob
 import numpy as np
 import torch
-from utils import utils,metric_F1,dataset
+from utils import utils,evaluate,dataset
 import logging
 import argparse
 import torch.nn as nn
@@ -25,14 +25,14 @@ parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='small', choices=['small', 'middle', 'large'])
 parser.add_argument('--batch_size', type=int, default=2)
 parser.add_argument('--eval_batch_size', type=int, default=2)
-parser.add_argument('--epochs', type=int, default=700)
-parser.add_argument('--layers', type=int, default=5)
+parser.add_argument('--epochs', type=int, default=300)
+parser.add_argument('--layers', type=int, default=4)
 parser.add_argument('--nodes', type=int, default=5)
-parser.add_argument('--channels', type=int, default=16)
+parser.add_argument('--channels', type=int, default=8)
 parser.add_argument('--cutout_size', type=int, default=None)
 parser.add_argument('--grad_bound', type=float, default=5.0)
-parser.add_argument('--lr_max', type=float, default=0.025)
-parser.add_argument('--lr_min', type=float, default=0)
+parser.add_argument('--lr_max', type=float, default=2e-3)
+parser.add_argument('--lr_min', type=float, default=1e-5)
 parser.add_argument('--keep_prob', type=float, default=0.6)
 parser.add_argument('--drop_path_keep_prob', type=float, default=0.8)
 parser.add_argument('--l2_reg', type=float, default=5e-4)
@@ -50,7 +50,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 
 def train(train_queue, model, optimizer, global_step, criterion):
     objs = utils.AvgrageMeter()
-    F1_score = utils.AvgrageMeter()
+    OIS = utils.AvgrageMeter()
+    ODS = utils.AvgrageMeter()
 
     model.train()
     for step, (input, target) in enumerate(train_queue):
@@ -66,20 +67,23 @@ def train(train_queue, model, optimizer, global_step, criterion):
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
         optimizer.step()
 
-        F1_measure = metric_F1.evaluation_F1_measure(img_predict, target)
+        ois = evaluate.evaluation_OIS(img_predict, target)
+        ods = evaluate.evaluation_ODS(img_predict, target)
         n = input.size(0)
         objs.update(loss.data, n)
-        F1_score.update(F1_measure, n)
+        OIS.update(ois, n)
+        ODS.update(ods,n)
 
         if (step+1) % 100 == 0:
-            logging.info('train %03d loss %e F1_score %f ', step+1, objs.avg, F1_score.avg)
+            logging.info('train %03d loss %e OIS %f ODS %f ', step+1, objs.avg, OIS.avg, ODS.avg)
 
-    return F1_score.avg, objs.avg, global_step
+    return OIS.avg, ODS.avg, objs.avg, global_step
 
 
 def valid(valid_queue, model, criterion):
     objs = utils.AvgrageMeter()
-    F1_score = utils.AvgrageMeter()
+    OIS = utils.AvgrageMeter()
+    ODS = utils.AvgrageMeter()
 
     with torch.no_grad():
         model.eval()
@@ -90,23 +94,27 @@ def valid(valid_queue, model, criterion):
             img_predict= model(input)
             loss = criterion(img_predict, target.long())
 
-            F1_measure = metric_F1.evaluation_F1_measure(img_predict, target)
+            ois = evaluate.evaluation_OIS(img_predict, target)
+            ods = evaluate.evaluation_ODS(img_predict, target)
+
             n = input.size(0)
             objs.update(loss.data, n)
-            F1_score.update(F1_measure, n)
+            OIS.update(ois, n)
+            ODS.update(ods,n)
+
         
             if (step+1) % 100 == 0:
-                logging.info('valid %03d loss %e f1_score %f ', step+1, objs.avg, F1_score.avg)
+                logging.info('valid %03d loss %e OIS %f ODS %f ', step+1, objs.avg, OIS.avg, ODS.avg)
 
-    return F1_score.avg, objs.avg
+    return OIS.avg, ODS.avg, objs.avg
 
 
 def get_builder(dataset):
     if dataset == 'BSD500':
         return build_BSD_500
     
-
 def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
+# def build_BSD_500(model_state_dict=None, optimizer_state_dict=None):
     epoch = kwargs.pop('epoch')
 
     data_path = os.getcwd() + "/data/BSR/BSDS500/data/"
@@ -128,8 +136,8 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
         valid_data, batch_size=args.eval_batch_size, pin_memory=True, num_workers=16)
 
 
-    model = NASUNetBSD(args, args.classes, depth=5, c=args.channels, keep_prob=0.6, nodes=args.nodes,
-                       use_aux_head=args.use_aux_head, arch=args.arch)
+    model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels, keep_prob=0.6, nodes=args.nodes,
+                       use_aux_head=args.use_aux_head, arch=args.arch, use_softmax_head=False)
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
     if model_state_dict is not None:
@@ -140,8 +148,10 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
         model = nn.DataParallel(model)
     model = model.cuda()
 
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.10, 0.90])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.10, 0.90])).cuda()
+    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
 
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -151,7 +161,8 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     )
     if optimizer_state_dict is not None:
         optimizer.load_state_dict(optimizer_state_dict)
-
+    
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min, epoch)
     return train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler
 
@@ -172,24 +183,27 @@ def main():
     args.steps = int(np.ceil(2000 / args.batch_size)) * args.epochs
     logging.info("Args = %s", args)
     
-    _, model_state_dict, epoch, step, optimizer_state_dict, best_f1_score = utils.load(args.output_dir)
+    _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS = utils.load(args.output_dir)
     build_fn = get_builder(args.dataset)
     train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler = build_fn(model_state_dict, optimizer_state_dict, epoch=epoch-1)
-
+    # train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler = build_fn()
+    
+    # epoch = 0
     while epoch < args.epochs:
         scheduler.step()
         logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
-        train_acc, train_obj, step = train(train_queue, model, optimizer, step, train_criterion)
-        logging.info('train_f1_score %f', train_acc)
-        valid_acc, valid_obj = valid(valid_queue, model, eval_criterion)
-        logging.info('valid_f1_score %f', valid_acc)
+        train_OIS, train_ODS, train_obj, step = train(train_queue, model, optimizer, step, train_criterion)
+        logging.info('train_OIS %f train_ODS %f', train_OIS,train_ODS)
+        valid_OIS, valid_ODS, valid_obj = valid(valid_queue, model, eval_criterion)
+        logging.info('valid_OIS %f valid_ODS %f', valid_OIS, valid_ODS)
         epoch += 1
         is_best = False
-        if valid_acc > best_f1_score:
-            best_f1_score = valid_acc
+        if (valid_OIS > best_OIS) and (valid_ODS > best_ODS):
+            best_OIS = valid_OIS
+            best_ODS = valid_ODS
             is_best = True
         if is_best:
-          utils.save(args.output_dir, args, model, epoch, step, optimizer, best_f1_score, is_best)
+          utils.save(args.output_dir, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best)
         
 
 if __name__ == '__main__':

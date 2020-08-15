@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from ops.operations import OPERATIONS_search_small, OPERATIONS_search_middle, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout
-from ops.genotype import DownOps,NormalOps,UpOps
 
 # customise the cell for segmentation
 class NodeSegmentation(nn.Module):
@@ -91,8 +90,8 @@ class NodeSegmentation(nn.Module):
             stride = 1
           else:
             stride = 2
-          self.x_op.append(item(possible_connection_nums, channels, channels, stride, True))
-          self.y_op.append(item(possible_connection_nums, channels, channels, stride, True))
+          self.x_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+          self.y_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
         # if self.stride>=2:
         #     pris=UpOps if transpose else DownOps
         # else:
@@ -145,20 +144,22 @@ class CellSegmentation(nn.Module):
         self.concatenate_nodes = nodes
 
         if self.type == 'down':
-            self.preprocess0 = nn.Sequential(
-            nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2,bias=False),
-            nn.BatchNorm2d(channels)
-        )
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=2, op_type='pre_ops')
+            # self.preprocess0 = nn.Sequential(
+            # nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2,bias=False),
+            # nn.BatchNorm2d(channels)
+        # )
         else:
-            self.preprocess0 = nn.Sequential(
-            nn.Conv2d(ch_prev_2, channels, kernel_size=1,bias=False),
-            nn.BatchNorm2d(channels)
-        )
-        
-        self.preprocess1 = nn.Sequential(
-            nn.Conv2d(ch_prev, channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(channels)
-        )
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, op_type='pre_ops')
+            # self.preprocess0 = nn.Sequential(
+            # nn.Conv2d(ch_prev_2, channels, kernel_size=1,bias=False),
+            # nn.BatchNorm2d(channels)
+        # )
+        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=1, stride=1, op_type='pre_ops')
+        # self.preprocess1 = nn.Sequential(
+        #     nn.Conv2d(ch_prev, channels, kernel_size=1, bias=False),
+        #     nn.BatchNorm2d(channels)
+        # )
 
         self._ops = nn.ModuleList()
 
@@ -192,7 +193,7 @@ class CellSegmentation(nn.Module):
 
 class NASUNetSegmentationWS(nn.Module):
     #args, classes, layers, nodes, channels, keep_prob, drop_path_keep_prob, use_aux_head, steps
-    def __init__(self, args, depth=4, classes=1, nodes=4, input_chs=3, chs=16, keep_prob=0.9, double_down_channel=False, use_softmax_head=False,use_aux_head=True):
+    def __init__(self, args, depth=4, classes=1, nodes=4, input_chs=3, chs=16, keep_prob=0.9, double_down_channel=False, use_softmax_head=False,use_aux_head=False):
         super(NASUNetSegmentationWS, self).__init__()
         self.args = args
         self.search_space = args.search_space
@@ -208,15 +209,17 @@ class NASUNetSegmentationWS(nn.Module):
         ch_prev_2, ch_prev, ch_curr = self.nodes * chs, self.nodes * chs, chs #chs = channels
 
         # s0 = 1×1 convolution [4c,h,w]
-        self._stem0 = nn.Sequential(
-            nn.Conv2d(input_chs, ch_prev_2, kernel_size=1, bias=False),
-            nn.BatchNorm2d(ch_prev_2)
-        )
+        # self._stem0 = nn.Sequential(
+        #     nn.Conv2d(input_chs, ch_prev_2, kernel_size=1, bias=False),
+        #     nn.BatchNorm2d(ch_prev_2)
+        # )
+        self._stem0 = ConvNet(input_chs, ch_prev_2, kernel_size=1, op_type='pre_ops')
         # s1 = 3×3 convolution [4c,0.5h,0.5w]
-        self._stem1 = nn.Sequential(
-            nn.Conv2d(input_chs, ch_prev, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_prev)
-        )
+        # self._stem1 = nn.Sequential(
+        #     nn.Conv2d(input_chs, ch_prev, kernel_size=3, stride=2, padding=1, bias=False),
+        #     nn.BatchNorm2d(ch_prev)
+        # )
+        self._stem1 = ConvNet(input_chs,ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
 
@@ -240,10 +243,12 @@ class NASUNetSegmentationWS(nn.Module):
             ch_prev = self.multiplier*ch_curr
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
-        self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
+        # self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
 
         if use_aux_head:
-            self.aux_output = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
+          self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d)
+        else:
+          self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1, op_type='SC')
 
         if use_softmax_head:
             self.softmax = nn.Softmax(dim=1)
@@ -258,6 +263,7 @@ class NASUNetSegmentationWS(nn.Module):
     def forward(self, input, arch, bn_train=False):
         # s0: [4c,h,w]
         # s1: [4c,0.5g,0.5w]
+        _,_,h,w = input.size()
         s0, s1 = self._stem0(input), self._stem1(input)
         cells_recorder = []
         
@@ -286,11 +292,11 @@ class NASUNetSegmentationWS(nn.Module):
            
           
 
-        x = self.ConvSegmentation(s1)
-
         if self.use_aux_head:
-          x = self.aux_output(x)
+          x = self.ConvSegmentation(s1)
           x = interpolate(x, (h,w))
+        else:
+          x = self.ConvSegmentation(s1)
 
         if self.use_softmax_head:
             x = self.softmax(x)

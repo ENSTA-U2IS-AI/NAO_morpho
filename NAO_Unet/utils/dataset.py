@@ -10,6 +10,7 @@ from torchvision import transforms, datasets
 from torchvision.transforms.functional import to_grayscale,hflip
 import matplotlib.pyplot as plt
 import torch.nn as nn
+# from utils import mosaic
 
 class BSD_loader(Dataset):
     def __init__(self,path,type='train',transform=None):
@@ -32,13 +33,14 @@ class BSD_loader(Dataset):
         if img.size[0]<img.size[1]:
           img = img.transpose(Image.ROTATE_90)
           label = label.transpose(Image.ROTATE_90)
-        
+
+        # grad = mosaic.gradient(img)
+        # label_watershed = mosaic.contrasted_watershed(grad,threshold=0.05)
+        # img = mosaic.mosaic(img,label_watershed)
         if self.transform:
           img = self.transform(img)
 
         label = to_grayscale(label)
-        # if label.max() > 1:
-        #     label = label / 255
             
         lable_transform = transforms.Compose([transforms.ToTensor()])
         label = lable_transform(label)
@@ -66,13 +68,7 @@ if __name__=="__main__":
     #   print(label.size())
     for i, (input, target) in enumerate(train_loader):
       print('i:%d,img size:%s,label size:%s',i,input.size(),target.size())
-      # print(target.cpu().numpy().astype('int64'))
-      print(torch.max(input,1)[1].numpy()[0::].shape)
-    # m = nn.Dropout(p=0.2)
-    # input = torch.randn(20, 16)
-    # output = m(input)
-    # print(input)
-    # print(output)
+      
 
 
 

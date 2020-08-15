@@ -24,16 +24,16 @@ class NodeSegmentation(nn.Module):
             OPERATIONS = OPERATIONS_small
         if self.transpose==False:
           x_stride = stride if x_id in [0, 1] else 1
-          self.x_op = OPERATIONS[x_op](channels, channels, x_stride, True)
+          self.x_op = OPERATIONS[x_op](channels, channels, x_stride, affine=True)
 
           y_stride = stride if y_id in [0, 1] else 1
-          self.y_op = OPERATIONS[y_op](channels, channels, y_stride, True)
+          self.y_op = OPERATIONS[y_op](channels, channels, y_stride, affine=True)
         else:
           x_stride = stride if x_id==1 else 1
-          self.x_op = OPERATIONS[x_op](channels, channels, x_stride, True)
+          self.x_op = OPERATIONS[x_op](channels, channels, x_stride, affine=True)
 
           y_stride = stride if y_id==1 else 1
-          self.y_op = OPERATIONS[y_op](channels, channels, y_stride, True)
+          self.y_op = OPERATIONS[y_op](channels, channels, y_stride, affine=True)
 
     def forward(self, x, y):
         # this mean that only the inputs to the intermediate nodes exists the down sampling ops
@@ -72,19 +72,23 @@ class CellSegmentation(nn.Module):
         self._multiplier = self.nodes
 
         if self.type == 'down':
-            self.preprocess0 = nn.Sequential(
-            nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2, bias=False),
-            nn.BatchNorm2d(channels)
-        )
+        #     self.preprocess0 = nn.Sequential(
+        #     nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2, bias=False),
+        #     nn.BatchNorm2d(channels)
+        # )
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=2, op_type='pre_ops')
         else:
-            self.preprocess0 = nn.Sequential(
-            nn.Conv2d(ch_prev_2, channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(channels)
-        )
-        self.preprocess1 = nn.Sequential(
-            nn.Conv2d(ch_prev, channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(channels)
-        )
+        #     self.preprocess0 = nn.Sequential(
+        #     nn.Conv2d(ch_prev_2, channels, kernel_size=1, bias=False),
+        #     nn.BatchNorm2d(channels)
+        # )
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, op_type='pre_ops')
+        # self.preprocess1 = nn.Sequential(
+        #     nn.Conv2d(ch_prev, channels, kernel_size=1, bias=False),
+        #     nn.BatchNorm2d(channels)
+        # )
+        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=1, stride=1, op_type='pre_ops')
+        
         stride = 2
         for i in range(self.nodes):
           x_id, x_op, y_id, y_op = arch[4 * i], arch[4 * i + 1], arch[4 * i + 2], arch[4 * i + 3]
@@ -143,16 +147,17 @@ class NASUNetBSD(nn.Module):
         ch_prev_2, ch_prev, ch_curr = self.multiplier * c, self.multiplier * c, c
 
         # s0 = 1×1 convolution
-        self._stem0 = nn.Sequential(
-            nn.Conv2d(in_channels, ch_prev_2, kernel_size=1, bias=False),
-            nn.BatchNorm2d(ch_prev_2)
-        )
+        # self._stem0 = nn.Sequential(
+        #     nn.Conv2d(in_channels, ch_prev_2, kernel_size=1, bias=False),
+        #     nn.BatchNorm2d(ch_prev_2)
+        # )
+        self._stem0 = ConvNet(in_channels, ch_prev_2, kernel_size=1, op_type='pre_ops')
         # s1 = 3×3 convolution
-        self._stem1 = nn.Sequential(
-            nn.Conv2d(in_channels, ch_prev, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_prev)
-        )
-
+        # self._stem1 = nn.Sequential(
+        #     nn.Conv2d(in_channels, ch_prev, kernel_size=3, stride=2, padding=1, bias=False),
+        #     nn.BatchNorm2d(ch_prev)
+        # )
+        self._stem1 = ConvNet(in_channels, ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
 
@@ -176,10 +181,13 @@ class NASUNetBSD(nn.Module):
             ch_prev = cell_up._multiplier*ch_curr
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
-        self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1)
+        self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
 
         if use_aux_head:
-            self.aux_output = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
+          self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
+        else:
+          self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
+
         if self.use_softmax_head:
           self.softmax = nn.Softmax(dim=1)
 
@@ -212,11 +220,13 @@ class NASUNetBSD(nn.Module):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1)
 
-        x = self.ConvSegmentation(s1)
+        
         if self.use_aux_head:
-          x = self.aux_output(x)
+          x = self.ConvSegmentation(s1)
           x = interpolate(x, (h,w))
-
+        else:
+          x = self.ConvSegmentation(s1)
+          
         if self.use_softmax_head:
           x = self.softmax(x)
         return x

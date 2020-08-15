@@ -1,5 +1,5 @@
 import sys
-import genotype as gt
+from utils import genotype as gt
 import os
 from graphviz import Digraph
 

@@ -4,7 +4,7 @@ import glob
 import random
 import numpy as np
 import torch
-from utils import utils, dataset, metric_F1
+from utils import utils, dataset, evaluate
 import logging
 import argparse
 import torch.nn as nn
@@ -31,26 +31,26 @@ parser.add_argument('--search_space', type=str, default='small', choices=['small
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=2)
 parser.add_argument('--child_eval_batch_size', type=int, default=2)
-parser.add_argument('--child_epochs', type=int, default=300)#300
+parser.add_argument('--child_epochs', type=int, default=100)#300
 parser.add_argument('--child_layers', type=int, default=4)#
 parser.add_argument('--child_nodes', type=int, default=5)
-parser.add_argument('--child_channels', type=int, default=16)
+parser.add_argument('--child_channels', type=int, default=8)
 parser.add_argument('--child_cutout_size', type=int, default=None)
 parser.add_argument('--child_grad_bound', type=float, default=5.0)
 parser.add_argument('--child_lr_max', type=float, default=1.0e-2)
-parser.add_argument('--child_lr_min', type=float, default=3.0e-2)
+parser.add_argument('--child_lr_min', type=float, default=1.0e-4)
 parser.add_argument('--child_keep_prob', type=float, default=1.0)
 parser.add_argument('--child_drop_path_keep_prob', type=float, default=0.9)
-parser.add_argument('--child_l2_reg', type=float, default=3e-4)
+parser.add_argument('--child_l2_reg', type=float, default=5e-4)
 parser.add_argument('--child_use_aux_head', action='store_true', default=False)
 parser.add_argument('--child_arch_pool', type=str, default=None)
 parser.add_argument('--child_lr', type=float, default=0.1)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=200)
+parser.add_argument('--controller_seed_arch', type=int, default=100)#200
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=60)
+parser.add_argument('--controller_new_arch', type=int, default=30)#60
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -131,12 +131,12 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
         # shuffle=True)
         # pin_memory=True, num_workers=2)
 
-    model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=2, nodes=args.child_nodes, chs=args.child_channels, 
-                  keep_prob=args.child_keep_prob,use_softmax_head=True)
+    model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=args.num_class, nodes=args.child_nodes, chs=args.child_channels, 
+                  keep_prob=args.child_keep_prob,use_softmax_head=False,use_aux_head=args.child_use_aux_head)
     model = model.cuda()
     
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     optimizer = torch.optim.SGD(
@@ -153,7 +153,7 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     return train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler
 
 def get_scheduler(optimizer, dataset):
-    if 'cifar' in dataset:
+    if 'BSD500' in dataset:
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min)
     else:
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.child_decay_period, gamma=args.child_gamma)
@@ -162,8 +162,8 @@ def get_scheduler(optimizer, dataset):
 
 def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob, criterion):
     objs = utils.AvgrageMeter()
-    F1 = utils.AvgrageMeter()
-
+    OIS = utils.AvgrageMeter()
+    OIS.reset()
     model.train()
     for step, (input, target) in enumerate(train_queue):
         input = input.cuda().requires_grad_()
@@ -179,18 +179,19 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
         optimizer.step()
 
-        F1_measure = metric_F1.evaluation_F1_measure(img_predict,target)
+        ois_ = evaluate.evaluation_OIS(img_predict,target)
      
         n = input.size(0)
         objs.update(loss.data, n)
-        F1.update(F1_measure,n)
-        
+        OIS.update(ois_,1)
+        # print(F1.avg)
         if (step+1) % 100 == 0:
-            logging.info('Train %03d loss %e F1 score %f ', step+1, objs.avg, F1.avg)
+            logging.info('Train %03d loss %e OIS %f ', step+1, objs.avg, OIS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0] + arch[1])))
         global_step += 1
+        # print(step)
 
-    return F1.avg, objs.avg, global_step
+    return OIS.avg, objs.avg, global_step
 
 
 def child_valid(valid_queue, model, arch_pool, criterion):
@@ -205,11 +206,11 @@ def child_valid(valid_queue, model, arch_pool, criterion):
             img_val_predict = model(inputs, arch, bn_train=True)
             loss = criterion(img_val_predict, targets.long())
 
-            F1_score = metric_F1.evaluation_F1_measure(img_val_predict,targets)
-            valid_acc_list.append(F1_score)
+            ois_ = evaluate.evaluation_OIS(img_val_predict,targets)
+            valid_acc_list.append(ois_)
             
             if (i+1) % 10 == 0:
-                logging.info('Valid arch %s\n loss %.2f F1 score %f', ' '.join(map(str, arch[0] + arch[1])), loss, F1_score)
+                logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
         
     return valid_acc_list
 
@@ -218,17 +219,19 @@ def child_valid(valid_queue, model, arch_pool, criterion):
 def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
     res = []
 
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
     
     objs = utils.AvgrageMeter()
-    F1 = utils.AvgrageMeter()
+    OIS = utils.AvgrageMeter()
     for i, arch in enumerate(archs):
         objs.reset()
-        F1.reset()
+        OIS.reset()
         logging.info('Train and evaluate the {} arch'.format(i+1))
-        model = NASUNetBSD(args, args.num_class, depth=5, c=args.child_channels, keep_prob=0.6,nodes=args.child_nodes,
-                use_aux_head=args.child_use_aux_head, arch=arch)
+        model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels, keep_prob=0.6, nodes=args.child_nodes,
+                use_aux_head=args.child_use_aux_head, arch=arch, use_softmax_head=False)
         model = model.cuda()
         model.train()
         optimizer = torch.optim.SGD(
@@ -254,15 +257,15 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
                 optimizer.step()
             
-                F1_score = metric_F1.evaluation_F1_measure(logits,target)
+                ois_ = evaluate.evaluation_OIS(logits,target)
                 n = input.size(0)
                 objs.update(loss.data, n)
-                F1.update(F1_score, n)
+                OIS.update(ois_, n)
             
                 if (step+1) % 100 == 0:
-                    logging.info('Train epoch %03d %03d loss %e F1_score %f', e+1, step+1, objs.avg, F1.avg)
+                    logging.info('Train epoch %03d %03d loss %e OIS %f', e+1, step+1, objs.avg, OIS.avg)
         objs.reset()
-        F1.reset()
+        OIS.reset()
         with torch.no_grad():
             model.eval()
             for step, (input, target) in enumerate(valid_queue):
@@ -272,14 +275,14 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 logits= model(input)
                 loss = eval_criterion(logits, target.long())
             
-                F1_score = metric_F1.evaluation_F1_measure(logits,target)
+                ois_ = evaluate.evaluation_OIS(logits,target)
                 n = input.size(0)
                 objs.update(loss.data, n)
-                F1.update(F1_score, n)
+                OIS.update(ois_, n)
             
                 if (step+1) % 100 == 0:
-                    logging.info('valid %03d loss %e F1_score %f ', step+1, objs.avg, F1.avg)
-        res.append(F1.avg)
+                    logging.info('valid %03d loss %e OIS %f ', step+1, objs.avg, OIS.avg)
+        res.append(OIS.avg)
     return res
 
 def nao_train(train_queue, model, optimizer):
@@ -451,7 +454,7 @@ def main():
             logging.info('epoch %d lr %e', epoch, lr)
             #Randomly sample an example to train
             train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool, child_arch_pool_prob, train_criterion)
-            logging.info('train_F1_score %f', train_acc)
+            logging.info('train_OIS %f', train_acc)
 
         logging.info("Evaluate seed archs")
         arch_pool += child_arch_pool
