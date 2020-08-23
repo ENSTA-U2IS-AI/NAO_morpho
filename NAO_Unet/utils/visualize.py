@@ -1,5 +1,6 @@
 import sys
-from utils import genotype as gt
+# from utils import genotype as gt
+import genotype as gt
 import os
 from graphviz import Digraph
 
@@ -25,7 +26,9 @@ def plot(genotype, filepath,format='png'):
         edge_attr=edge_info,
         node_attr=node_info,
         engine='dot')
-    graph_info.body.extend(['randkdir=LR'])
+    # graph_info.body.extend(['randkdir=LR'])
+    graph_info.graph_attr.update({'rankdir': 'LR'})
+    # graph_info.graph_attr.update({'rankdir': 'TB'})
 
     #input nodes info
     graph_info.node("c_{k-2}", fillcolor='darkseagreen2')

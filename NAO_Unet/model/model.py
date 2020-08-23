@@ -4,12 +4,11 @@ import torch
 
 # customise the cell for segmentation
 class NodeSegmentation(nn.Module):
-    def __init__(self,search_space,x_id,x_op,y_id,y_op,channels,stride,drop_path_keep_prob=None,transpose=False):
+    def __init__(self,search_space,x_id,x_op,y_id,y_op,channels,stride,transpose=False):
         super(NodeSegmentation, self).__init__()
         self.search_space = search_space
         self.channels = channels
         self.stride = stride
-        self.drop_path_keep_prob = drop_path_keep_prob
         self.x_id = x_id
         self.x_op_id = x_op
         self.y_id = y_id
@@ -60,10 +59,9 @@ def consistent_dim(states):
 
 # customise the cell for segmentation
 class CellSegmentation(nn.Module):
-    def __init__(self, search_space, arch, ch_prev_2, ch_prev, channels, dropout_prob=0, type='down'):
+    def __init__(self, search_space, arch, ch_prev_2, ch_prev, channels, type='down'):
         super(CellSegmentation, self).__init__()
         self.search_space = search_space
-        self.dropout_prob = dropout_prob
         self.ops = nn.ModuleList()
         self.nodes = len(arch)//4
         self.type = type
@@ -76,28 +74,20 @@ class CellSegmentation(nn.Module):
         #     nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2, bias=False),
         #     nn.BatchNorm2d(channels)
         # )
-            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=2, op_type='pre_ops')
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=2, op_type='pre_ops_cell')
         else:
-        #     self.preprocess0 = nn.Sequential(
-        #     nn.Conv2d(ch_prev_2, channels, kernel_size=1, bias=False),
-        #     nn.BatchNorm2d(channels)
-        # )
-            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, op_type='pre_ops')
-        # self.preprocess1 = nn.Sequential(
-        #     nn.Conv2d(ch_prev, channels, kernel_size=1, bias=False),
-        #     nn.BatchNorm2d(channels)
-        # )
-        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=1, stride=1, op_type='pre_ops')
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, op_type='pre_ops_cell')
+        
+        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=1, stride=1, op_type='pre_ops_cell')
         
         stride = 2
         for i in range(self.nodes):
           x_id, x_op, y_id, y_op = arch[4 * i], arch[4 * i + 1], arch[4 * i + 2], arch[4 * i + 3]
           if self.type =='down':
-            node = NodeSegmentation(search_space,  x_id, x_op, y_id, y_op, channels, stride,
-                                  dropout_prob )
+            node = NodeSegmentation(search_space,  x_id, x_op, y_id, y_op, channels, stride)
           else:
             node = NodeSegmentation(search_space,  x_id, x_op, y_id, y_op, channels, stride,
-                                              dropout_prob,transpose=True )
+                                                transpose=True )
           self.ops.append(node)
 
     def forward(self, s0, s1):
@@ -113,7 +103,7 @@ class CellSegmentation(nn.Module):
             y = states[y_id]
             out = self.ops[i](x,y)
             states.append(out)
-
+        # print(out.size())
         out = torch.cat(states[-self.concatenate_nodes:], dim=1)
         return out
 
@@ -122,8 +112,8 @@ class CellSegmentation(nn.Module):
 class NASUNetBSD(nn.Module):
     """construct the Ulike-net according to these searched cells"""
 
-    def __init__(self, args, nclass, in_channels=3, backbone=None, aux=False,
-                 c=48, depth=5, keep_prob=0.9, nodes=5, arch=None,
+    def __init__(self, args, nclass=1, in_channels=3, backbone=None, aux=False,
+                 c=8, depth=4, dropout_rate=0., nodes=5, arch=None,
                  double_down_channel=False, use_aux_head=False,use_softmax_head=False):
         super(NASUNetBSD, self).__init__()
         self.args = args
@@ -168,7 +158,7 @@ class NASUNetBSD(nn.Module):
         # this is the left part of U-Net (encoder) down sampling
         for i in range(depth):
             ch_curr = 2*ch_curr if self.double_down_channel else ch_curr
-            cell_down = CellSegmentation(self.search_space,self.DownCell_arch,ch_prev_2,ch_prev,ch_curr,1-keep_prob,type='down')
+            cell_down = CellSegmentation(self.search_space,self.DownCell_arch,ch_prev_2,ch_prev,ch_curr,type='down')
             self.cells_down +=[cell_down]
             ch_prev_2,ch_prev = ch_prev,cell_down._multiplier*ch_curr
             path_recorder +=[ch_prev]
@@ -176,12 +166,12 @@ class NASUNetBSD(nn.Module):
         # this is the right part of U-Net (decoder) up sampling
         for i in range(depth+1):
             ch_prev_2 = path_recorder[-(i+2)]
-            cell_up = CellSegmentation(self.search_space,self.UpCell_arch,ch_prev_2,ch_prev,ch_curr,1-keep_prob,type='up')
+            cell_up = CellSegmentation(self.search_space,self.UpCell_arch,ch_prev_2,ch_prev,ch_curr,type='up')
             self.cells_up += [cell_up]
             ch_prev = cell_up._multiplier*ch_curr
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
-        self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
+        # self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
 
         if use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
@@ -219,14 +209,38 @@ class NASUNetBSD(nn.Module):
         for i, cell in enumerate(self.cells_up):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1)
-
         
-        if self.use_aux_head:
-          x = self.ConvSegmentation(s1)
-          x = interpolate(x, (h,w))
-        else:
-          x = self.ConvSegmentation(s1)
+        
+        # if self.use_aux_head:
+        #   x = self.ConvSegmentation(s1)
+        #   x = interpolate(x, (h,w))
+        # else:
+        x = self.ConvSegmentation(s1)
           
         if self.use_softmax_head:
           x = self.softmax(x)
+        # print(x.size())
+        # exit()
         return x
+
+
+if __name__ == '__main__':
+    batch_size = 8
+    img_height = 400
+    img_width = 400
+
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
+    input = torch.rand(batch_size, 3, img_height, img_width).to(device)
+    # target = torch.rand(batch_size, 1, img_height, img_width).to(device)
+    print(f"input shape: {input.shape}")
+    model = NASUNetBSD().to(device)
+    output = model(input)
+    print(output.size())
+    # print(f"output shapes: {[t.shape for t in output]}")
+
+    # for i in range(20000):
+    #     print(i)
+    #     output = model(input)
+    #     loss = nn.MSELoss()(output[-1], target)
+    #     loss.backward()

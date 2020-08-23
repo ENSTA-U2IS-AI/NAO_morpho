@@ -29,12 +29,12 @@ parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='small', choices=['small', 'middle'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--child_batch_size', type=int, default=2)
-parser.add_argument('--child_eval_batch_size', type=int, default=2)
+parser.add_argument('--child_batch_size', type=int, default=8)
+parser.add_argument('--child_eval_batch_size', type=int, default=4)
 parser.add_argument('--child_epochs', type=int, default=100)#300
 parser.add_argument('--child_layers', type=int, default=4)#
 parser.add_argument('--child_nodes', type=int, default=5)
-parser.add_argument('--child_channels', type=int, default=8)
+parser.add_argument('--child_channels', type=int, default=16)
 parser.add_argument('--child_cutout_size', type=int, default=None)
 parser.add_argument('--child_grad_bound', type=float, default=5.0)
 parser.add_argument('--child_lr_max', type=float, default=1.0e-2)
@@ -42,9 +42,10 @@ parser.add_argument('--child_lr_min', type=float, default=1.0e-4)
 parser.add_argument('--child_keep_prob', type=float, default=1.0)
 parser.add_argument('--child_drop_path_keep_prob', type=float, default=0.9)
 parser.add_argument('--child_l2_reg', type=float, default=5e-4)
-parser.add_argument('--child_use_aux_head', action='store_true', default=False)
+parser.add_argument('--child_use_aux_head', action='store_true', default=True)
 parser.add_argument('--child_arch_pool', type=str, default=None)
 parser.add_argument('--child_lr', type=float, default=0.1)
+
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
@@ -107,13 +108,9 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     data_path =  os.getcwd()+"/data/BSR/BSDS500/data/"
     train_data = dataset.BSD_loader(data_path,type='train',transform = transforms.Compose([
                     transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
                   ]))
     valid_data = dataset.BSD_loader(data_path,type='val',transform = transforms.Compose([
                     transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225])
                   ]))
 
     # num_train = len(train_data)
@@ -122,21 +119,20 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     # np.random.shuffle(indices)
 
     train_queue = torch.utils.data.DataLoader(
-        train_data, batch_size=args.child_batch_size,pin_memory=True, num_workers=16)
-        # shuffle=True)
-        # sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-        # pin_memory=True, num_workers=2)
+        train_data, batch_size=args.child_batch_size,pin_memory=True, num_workers=16,shuffle=True)
+      
     valid_queue = torch.utils.data.DataLoader(
         valid_data, batch_size=args.child_eval_batch_size,pin_memory=True, num_workers=16)
-        # shuffle=True)
-        # pin_memory=True, num_workers=2)
-
+       
     model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=args.num_class, nodes=args.child_nodes, chs=args.child_channels, 
                   keep_prob=args.child_keep_prob,use_softmax_head=False,use_aux_head=args.child_use_aux_head)
     model = model.cuda()
     
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+
+    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     optimizer = torch.optim.SGD(
@@ -164,17 +160,20 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
     OIS.reset()
+
+    # set the mode of model to train
     model.train()
+
     for step, (input, target) in enumerate(train_queue):
         input = input.cuda().requires_grad_()
         target = target.cuda()
 
-        optimizer.zero_grad()
-
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
         img_predict = model(input, arch)
-        global_step+=1
         loss = criterion(img_predict, target.long())
+
+        optimizer.zero_grad()
+        global_step+=1
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
         optimizer.step()
@@ -184,34 +183,44 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         n = input.size(0)
         objs.update(loss.data, n)
         OIS.update(ois_,1)
-        # print(F1.avg)
-        if (step+1) % 100 == 0:
+        if (step+1) % 25 == 0:
             logging.info('Train %03d loss %e OIS %f ', step+1, objs.avg, OIS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0] + arch[1])))
         global_step += 1
-        # print(step)
 
     return OIS.avg, objs.avg, global_step
 
 
 def child_valid(valid_queue, model, arch_pool, criterion):
     valid_acc_list = []
-    with torch.no_grad():
-        model.eval()
-        for i, arch in enumerate(arch_pool):
-            inputs, targets = next(iter(valid_queue))
-            inputs = inputs.cuda()
-            targets = targets.cuda()
-                
-            img_val_predict = model(inputs, arch, bn_train=True)
-            loss = criterion(img_val_predict, targets.long())
+    # objs = utils.AvgrageMeter()
+    # OIS = utils.AvgrageMeter()
 
-            ois_ = evaluate.evaluation_OIS(img_val_predict,targets)
-            valid_acc_list.append(ois_)
-            
-            if (i+1) % 10 == 0:
-                logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
-        
+    # set the mode of model to eval
+    model.eval()
+
+    with torch.no_grad():
+        for i, arch in enumerate(arch_pool):
+          # for (inputs, targets) in valid_queue:
+          inputs, targets = next(iter(valid_queue))
+          inputs = inputs.cuda()
+          targets = targets.cuda()
+          
+          img_val_predict = model(inputs, arch, bn_train=True)
+          loss = criterion(img_val_predict, targets.long())
+
+          ois_ = evaluate.evaluation_OIS(img_val_predict,targets)
+          # n = inputs.size(0)
+          # objs.update(loss.data, n)
+          # OIS.update(ois_,1)
+          valid_acc_list.append(ois_)
+          if (i+1) % 10 == 0:
+              logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
+      
+          # valid_acc_list.append(OIS.avg)
+          # if (i+1) % 10 == 0:
+          #     logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, OIS.avg)
+      
     return valid_acc_list
 
 
@@ -219,10 +228,10 @@ def child_valid(valid_queue, model, arch_pool, criterion):
 def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
     res = []
 
-    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
-    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
+    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
+    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
     
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
@@ -230,7 +239,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
         objs.reset()
         OIS.reset()
         logging.info('Train and evaluate the {} arch'.format(i+1))
-        model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels, keep_prob=0.6, nodes=args.child_nodes,
+        model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels, nodes=args.child_nodes,
                 use_aux_head=args.child_use_aux_head, arch=arch, use_softmax_head=False)
         model = model.cuda()
         model.train()
@@ -244,15 +253,19 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
         global_step = 0
         for e in range(10):
             scheduler.step()
+            # set the mode of model to train
+            model.train()
+
             for step, (input, target) in enumerate(train_queue):
                 input = input.cuda().requires_grad_()
                 target = target.cuda()
-
-                optimizer.zero_grad()
+                
                 # sample an arch to train
                 logits = model(input)
-                global_step += 1
                 loss = train_criterion(logits, target.long())
+
+                optimizer.zero_grad()
+                global_step += 1
                 loss.backward()
                 nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
                 optimizer.step()
@@ -266,8 +279,10 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                     logging.info('Train epoch %03d %03d loss %e OIS %f', e+1, step+1, objs.avg, OIS.avg)
         objs.reset()
         OIS.reset()
+        # set the mode of model to eval
+        model.eval()
+        
         with torch.no_grad():
-            model.eval()
             for step, (input, target) in enumerate(valid_queue):
                 input = input.cuda()
                 target = target.cuda()
@@ -441,7 +456,7 @@ def main():
 
         child_arch_pool_prob = []
         for arch in child_arch_pool:
-            tmp_model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels, keep_prob=args.child_keep_prob,nodes=args.child_nodes,
+            tmp_model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels, nodes=args.child_nodes,
                 use_aux_head=args.child_use_aux_head, arch=arch)
             child_arch_pool_prob.append(utils.count_parameters_in_MB(tmp_model))
             del tmp_model
