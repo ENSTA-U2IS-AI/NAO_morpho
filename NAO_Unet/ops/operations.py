@@ -467,14 +467,13 @@ class Pseudo_Shuff(nn.Module):
       '''
       x: tensor of shape (B,C,H,W)
       '''
-      # x = self.bn(x)
+      x = self.norm(x)
       y = self.convmorph(x)# / self.degree
       y = self.pixel_shuffle(y)
       y = self.pool_(y)
       if self.stride==2:
         y = self.pool(y)
-      y = self.norm(y)
-      return self.activate(y)
+      return y
 
 class WSPseudo_Shuff(nn.Module):
   def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None, affine=True):
@@ -499,15 +498,13 @@ class WSPseudo_Shuff(nn.Module):
       '''
       x: tensor of shape (B,C,H,W)
       '''
-      # x = self.norm(x)
+      x = self.norm(x)
       y = self.convmorph(x)# / self.degree
-      # y = F.conv2d(x, self.w, stride=self.stride, padding=self.padding)
       y = self.pixel_shuffle(y)
       y = self.pool_(y)
       if stride==2:
         y = self.pool(y)
-      y = self.norm(y)
-      return self.activate(y)
+      return y
 
 #Operation 1
 class CWeightNet(nn.Module):
@@ -788,14 +785,7 @@ UpOps = [
             'up_conv_3×3'
 ]
 """
-# OPERATIONS_small = {
-#     0: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 3, stride, 1, shape, affine=affine),
-#     1: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 5, stride, 2, shape, affine=affine),
-#     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
-#     3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1), 
-#     4: lambda c_in, c_out, stride, shape, affine: Identity() if stride == 1 else FactorizedReduce(c_in, c_out, shape, affine=affine),
-#     5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
-# }
+
 OPERATIONS_small = {
     0:lambda c_in, c_out, stride, affine: AvgPool(3, stride, 1),#'avg_pool'
     1:lambda c_in, c_out, stride, affine: MaxPool(3, stride, 1),#'max_pool'
@@ -810,15 +800,6 @@ OPERATIONS_small = {
     10:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
 
-
-# OPERATIONS_search_small = {
-#     0: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 3, 1, affine=affine),
-#     1: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 5, 2, affine=affine),
-#     2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
-#     3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
-#     4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),
-#     5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
-# }
 OPERATIONS_search_small = {
     0:lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),#'avg_pool'
     1:lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),#'max_pool'
@@ -833,17 +814,30 @@ OPERATIONS_search_small = {
     10:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
 
-
-OPERATIONS_middle = {
-
+"""
+0-3 down ops
+4-6 normal ops
+7-8 up ops
+"""
+OPERATIONS_without_mor_ops = {
+    0:lambda c_in, c_out, stride, affine: AvgPool(3, stride, 1),#'avg_pool'
+    1:lambda c_in, c_out, stride, affine: MaxPool(3, stride, 1),#'max_pool'
+    2:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,stride=2,affine=affine),#'down_cweight_3×3'
+    3:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,affine=affine),#'down_conv_3×3'
+    4:lambda c_in, c_out, stride, affine: Identity(c_in, c_out, affine),#'identity'
+    5:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,affine=affine),#'cweight_3×3'
+    6:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,affine=affine),#'conv_3×3'
+    7:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,stride=2,transpose=True,affine=affine),#'up_cweight_3×3'
+    8:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
-
-
-OPERATIONS_search_middle = {
- 
-}
-
-
-OPERATIONS_large = {
-  
+OPERATIONS_search_without_mor_ops = {
+    0:lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),#'avg_pool'
+    1:lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),#'max_pool'
+    2:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,stride=2,affine=affine),#'down_cweight_3×3'
+    3:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,affine=affine),#'down_conv_3×3'
+    4:lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),#'identity'
+    5:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,affine=affine),#'cweight_3×3'
+    6:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,affine=affine),#'conv_3×3'
+    7:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_cweight_3×3'
+    8:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }

@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 from model.model import NASUNetBSD
 from search.model_search import NASUNetSegmentationWS
-from ops.operations import OPERATIONS_search_small,OPERATIONS_small
+from ops.operations import OPERATIONS_search_small,OPERATIONS_small,OPERATIONS_without_mor_ops,OPERATIONS_search_without_mor_ops
 from controller import NAO
 
 parser = argparse.ArgumentParser(description='NAO Search')
@@ -27,12 +27,12 @@ parser.add_argument('--dataset', type=str, default='BSD500')
 parser.add_argument('--zip_file', action='store_true', default=False)
 parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
-parser.add_argument('--search_space', type=str, default='small', choices=['small', 'middle'])
+parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=8)
 parser.add_argument('--child_eval_batch_size', type=int, default=4)
-parser.add_argument('--child_epochs', type=int, default=100)#300
-parser.add_argument('--child_layers', type=int, default=4)#
+parser.add_argument('--child_epochs', type=int, default=150)
+parser.add_argument('--child_layers', type=int, default=4)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=16)
 parser.add_argument('--child_cutout_size', type=int, default=None)
@@ -49,9 +49,9 @@ parser.add_argument('--child_lr', type=float, default=0.1)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=100)#200
+parser.add_argument('--controller_seed_arch', type=int, default=150)#100
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=30)#60
+parser.add_argument('--controller_new_arch', type=int, default=50)#60
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -392,10 +392,10 @@ def main():
     else:
         args.num_class = 10
     
-    if args.search_space == 'small':
+    if args.search_space == 'with_mor_ops':
         OPERATIONS = OPERATIONS_search_small
-    elif args.search_space == 'middle':
-        OPERATIONS = OPERATIONS_search_middle
+    elif args.search_space == 'without_mor_ops':
+        OPERATIONS = OPERATIONS_search_without_mor_ops
         
     args.child_num_ops = len(OPERATIONS)
     args.controller_encoder_vocab_size = 1 + ( args.child_nodes + 2 - 1 ) + args.child_num_ops
@@ -448,7 +448,7 @@ def main():
     
     if child_arch_pool is None:
         logging.info('Architecture pool is not provided, randomly generating now')
-        child_arch_pool = utils.generate_arch(args.controller_seed_arch, args.child_nodes, args.child_num_ops)  # [[[downc],[upc]]]
+        child_arch_pool = utils.generate_arch(args.controller_seed_arch, args.child_nodes, args.child_num_ops, args.search_space)  # [[[downc],[upc]]]
     arch_pool = []
     arch_pool_valid_acc = []
     for i in range(4):
@@ -491,6 +491,7 @@ def main():
         logging.info('Train Encoder-Predictor-Decoder')
         encoder_input = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool))
         # [[downc, upc]]
+        print(encoder_input)
         min_val = min(arch_pool_valid_acc)
         max_val = max(arch_pool_valid_acc)
         encoder_target = [(i - min_val) / (max_val - min_val) for i in arch_pool_valid_acc]
@@ -552,7 +553,7 @@ def main():
             new_arch = nao_infer(nao_infer_queue, nao, predict_step_size, direction='+')
             for arch in new_arch:
                 if arch not in encoder_input and arch not in new_archs:
-                  if(utils.determine_arch_valid(arch)):
+                  if(utils.determine_arch_valid(arch,search_space=args.search_space)):
                     new_archs.append(arch)
                   else:
                     continue

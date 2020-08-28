@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ops.operations import OPERATIONS_search_small, OPERATIONS_search_middle, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout
+from ops.operations import OPERATIONS_search_small, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout,OPERATIONS_search_without_mor_ops
 
 # customise the cell for segmentation
 class NodeSegmentation(nn.Module):
@@ -16,20 +16,28 @@ class NodeSegmentation(nn.Module):
         possible_connection_nums = node_id+2
         self.initial_id_for_up_or_down = initial_id_for_up_or_down
 
-        if search_space == 'small':
+        if search_space == 'with_mor_ops':
             OPERATIONS = OPERATIONS_search_small
-        elif search_space == 'middle':
-            OPERATIONS = OPERATIONS_search_middle
+        elif search_space == 'without_mor_ops':
+            OPERATIONS = OPERATIONS_search_without_mor_ops
         else:
             OPERATIONS = OPERATIONS_search_small
-
-        for i, item in OPERATIONS.items():
-          if 5<=i<9:
-            stride = 1
-          else:
-            stride = 2
-          self.x_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
-          self.y_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+        if search_space == 'with_mor_ops':
+          for i, item in OPERATIONS.items():
+            if 5<=i<9:
+              stride = 1
+            else:
+              stride = 2
+            self.x_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+            self.y_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+        else:
+          for i, item in OPERATIONS.items():
+            if 4<=i<7:
+              stride = 1
+            else:
+              stride = 2
+            self.x_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+            self.y_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
       
     def forward(self, x, x_id, x_op, y, y_id, y_op,bn_train=False):
         # this mean that only the inputs to the intermediate nodes exists the down sampling ops
@@ -108,8 +116,8 @@ class CellSegmentation(nn.Module):
             out = self.ops[i](states[x_id], x_id, x_op, states[y_id], y_id, y_op,bn_train=bn_train)
             states.append(out)
             # print('\n')
-            # print(out.size())
-        
+           
+        # print(out.size())
         out = torch.cat(states[-self.concatenate_nodes:], dim=1)
         return out
 
@@ -207,7 +215,7 @@ class NASUNetSegmentationWS(nn.Module):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1,UpCell_arch,bn_train=bn_train)
      
-
+        # exit()
         if self.use_aux_head:
           x = self.ConvSegmentation(s1)
           x = interpolate(x, (h,w))

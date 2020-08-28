@@ -2,7 +2,7 @@ import sys
 import glob
 import numpy as np
 import torch
-from utils import utils,evaluate,dataset,losses
+from utils import utils,evaluate,dataset
 import logging
 import argparse
 import torch.nn as nn
@@ -24,7 +24,7 @@ parser.add_argument('--data', type=str, default='data')
 parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
-parser.add_argument('--search_space', type=str, default='small', choices=['small', 'middle', 'large'])
+parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--batch_size', type=int, default=8)
 parser.add_argument('--eval_batch_size', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=50)
@@ -226,30 +226,30 @@ def main():
     build_fn = get_builder(args.dataset)
     train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler = build_fn(model_state_dict, optimizer_state_dict, epoch=epoch-1)
     
-    val_loss = 10
-    while epoch < args.epochs:
-        # logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
-        logging.info('epoch %d lr %e', epoch, optimizer.param_groups[0]['lr'])
-        train_OIS, train_ODS, train_obj, step = train(train_queue, model, optimizer, step, train_criterion)
-        logging.info('train_OIS %f train_ODS %f', train_OIS,train_ODS)
-        valid_OIS, valid_ODS, valid_obj = valid(valid_queue, model, eval_criterion)
-        logging.info('valid_OIS %f valid_ODS %f', valid_OIS, valid_ODS)
-        epoch += 1
-        scheduler.step(valid_obj)
-        is_best = False
-        if (val_loss > valid_obj) or (valid_OIS>best_OIS) :
-            val_loss = valid_obj
-            best_OIS = valid_OIS
-            best_ODS = valid_ODS
-            is_best = True
-        if is_best:
-          utils.save(args.output_dir, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best)
-        #draw the curve
-        with open('./curve/accuracy_loss_validation.txt','a+')as f:
-          f.write(str(valid_obj.cpu().numpy()))
-          f.write(',') 
-          f.write(str(valid_OIS)) 
-          f.write('\n')
+    # val_loss = 10
+    # while epoch < args.epochs:
+    #     # logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
+    #     logging.info('epoch %d lr %e', epoch, optimizer.param_groups[0]['lr'])
+    #     train_OIS, train_ODS, train_obj, step = train(train_queue, model, optimizer, step, train_criterion)
+    #     logging.info('train_OIS %f train_ODS %f', train_OIS,train_ODS)
+    #     valid_OIS, valid_ODS, valid_obj = valid(valid_queue, model, eval_criterion)
+    #     logging.info('valid_OIS %f valid_ODS %f', valid_OIS, valid_ODS)
+    #     epoch += 1
+    #     scheduler.step(valid_obj)
+    #     is_best = False
+    #     if (val_loss > valid_obj) or (valid_OIS>best_OIS) :
+    #         val_loss = valid_obj
+    #         best_OIS = valid_OIS
+    #         best_ODS = valid_ODS
+    #         is_best = True
+    #     if is_best:
+    #       utils.save(args.output_dir, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best)
+    #     #draw the curve
+    #     with open('./curve/accuracy_loss_validation.txt','a+')as f:
+    #       f.write(str(valid_obj.cpu().numpy()))
+    #       f.write(',') 
+    #       f.write(str(valid_OIS)) 
+    #       f.write('\n')
 
     # with open('./curve/accuracy_loss_validation.txt','r') as f:
     #     for line in f:
@@ -259,14 +259,14 @@ def main():
     # evaluate.accuracyandlossCurve(loss,accuracy_OIS,args.epochs)
     # logging.info('train is finished!')
     
-    # data_path = os.getcwd() + "/data/BSR/BSDS500/data/"
-    # test_data = dataset.BSD_loader(data_path, type='test', transform=transforms.Compose([
-    #     transforms.ToTensor(),
-    # ]))
-    # test_queue = torch.utils.data.DataLoader(
-    #     test_data, batch_size=1, pin_memory=True, num_workers=16)
-    # test(test_queue, model, eval_criterion)
-    # logging.info('test is finished!')
+    data_path = os.getcwd() + "/data/BSR/BSDS500/data/"
+    test_data = dataset.BSD_loader(data_path, type='test', transform=transforms.Compose([
+        transforms.ToTensor(),
+    ]))
+    test_queue = torch.utils.data.DataLoader(
+        test_data, batch_size=1, pin_memory=True, num_workers=16,shuffle=True)
+    test(test_queue, model, eval_criterion)
+    logging.info('test is finished!')
 
 if __name__ == '__main__':
     main()

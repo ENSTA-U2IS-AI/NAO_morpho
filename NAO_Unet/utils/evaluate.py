@@ -184,6 +184,8 @@ def save_predict_imgs(img_predict,nums):
     img_predict = img_predict[:, 1]
     img_predict = img_predict.squeeze()
     img_predict = img_predict.cpu().detach().numpy().astype('float32')
+    threshold = 0.79285
+    img_predict = np.where(img_predict>=threshold,img_predict,0)
     img_predict *= 255
     edge = 255 - img_predict
     edge = Image.fromarray(np.uint8(edge))

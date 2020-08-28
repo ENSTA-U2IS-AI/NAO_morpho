@@ -1,5 +1,5 @@
 import torch.nn as nn
-from ops.operations import OPERATIONS_small, OPERATIONS_middle, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout
+from ops.operations import OPERATIONS_small, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout, OPERATIONS_without_mor_ops
 import torch
 
 # customise the cell for segmentation
@@ -15,12 +15,13 @@ class NodeSegmentation(nn.Module):
         self.y_op_id = y_op
         self.transpose = transpose
 
-        if search_space == 'small':
+        if search_space == 'with_mor_ops':
             OPERATIONS = OPERATIONS_small
-        elif search_space == 'middle':
-            OPERATIONS = OPERATIONS_middle
+        elif search_space == 'without_mor_ops':
+            OPERATIONS = OPERATIONS_without_mor_ops
         else:
             OPERATIONS = OPERATIONS_small
+
         if self.transpose==False:
           x_stride = stride if x_id in [0, 1] else 1
           self.x_op = OPERATIONS[x_op](channels, channels, x_stride, affine=True)
