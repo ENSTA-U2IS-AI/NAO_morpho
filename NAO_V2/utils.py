@@ -51,7 +51,10 @@ def accuracy(output, target, topk=(1,)):
 
     res = []
     for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0)
+        try:
+            correct_k = correct[:k].view(-1).float().sum(0)
+        except:
+            correct_k = correct[:k].reshape(-1).float().sum(0)
         res.append(correct_k.mul_(100.0/batch_size))
     return res
 
@@ -405,6 +408,10 @@ class NAODataset(torch.utils.data.Dataset):
 
 def count_parameters_in_MB(model):
     return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
+
+def display_parameters(model):
+    for param in model.named_parameters():
+      print(param[0],param[1].size())
 
 
 def save_checkpoint(state, is_best, save):

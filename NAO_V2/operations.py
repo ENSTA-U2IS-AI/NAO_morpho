@@ -422,82 +422,155 @@ class FinalCombine(nn.Module):
         out = torch.cat([states[i] for i in self.concat], dim=1)
         return out
 
-class Pseudo_Morphology(nn.Module):
+class Conv2d_WS(nn.Conv2d):
+    '''WS:Weight Standardization
+    ref:https://github.com/joe-siyuan-qiao/WeightStandardization
+    '''
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding=0, dilation=1, groups=1, bias=True):
+        super(Conv2d_WS, self).__init__(in_channels, out_channels, kernel_size, stride,
+                 padding, dilation, groups, bias)
+
+    def forward(self, x):
+        weight = self.weight
+        weight_mean = weight.mean(dim=1, keepdim=True).mean(dim=2,
+                                  keepdim=True).mean(dim=3, keepdim=True)
+        weight = weight - weight_mean
+        std = weight.view(weight.size(0), -1).std(dim=1).view(-1, 1, 1, 1) + 1e-5
+        weight = weight / std.expand_as(weight)
+        return F.conv2d(x, weight, self.bias, self.stride,
+                        self.padding, self.dilation, self.groups)
+
+class Depthwise_separable_conv_WS(nn.Module):
+    def __init__(self, cin, cout, kernel_size):
+        super(Depthwise_separable_conv_WS, self).__init__()
+        self.depthwise = Conv2d_WS(cin, cin, kernel_size=kernel_size, padding=1, groups=cin)
+        self.pointwise = Conv2d_WS(cin, cout, kernel_size=1)
+
+    def forward(self, x):
+        out = self.depthwise(x)
+        out = self.pointwise(out)
+        return out
+
+
+class Pseudo_Shuff_dilation_WS(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
+        super(Pseudo_Shuff_dilation_WS, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.pading = kernel_size // 2
+        self.degree = degree
+        self.stride = stride
+        self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
+        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+        self.bn = nn.BatchNorm2d(out_channels, affine=False)
+        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    def forward(self, x):
+        '''
+        x: tensor of shape (B,C,H,W)
+        '''
+        x = self.bn(x)
+        y = self.convmorph(x)  # / self.degree
+        y = self.pixel_shuffle(y)
+        y = self.pool_(y)
+        if self.stride == 2:
+            y = self.pool(y)
+        return y
+
+
+class WSPseudo_Shuff_dilation_WS(nn.Module):
+    """
+    the first WS: weights shared
+    the second WS:  Weight Standardization
+    """
+    def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
+        super(WSPseudo_Shuff_dilation_WS, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.pading = kernel_size // 2
+        self.degree = degree
+        self.stride = stride
+        self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
+        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+        self.bn = nn.BatchNorm2d(out_channels, affine=False)
+        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    def forward(self, x, x_id, stride, bn_train=False):
+        '''
+        x: tensor of shape (B,C,H,W)
+        '''
+        x = self.bn(x)
+        y = self.convmorph(x)  # / self.degree
+        y = self.pixel_shuffle(y)
+        y = self.pool_(y)
+        if stride == 2:
+            y = self.pool(y)
+        return y
+
+class Pseudo_Shuff_dilation_WS_GN(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
+        super(Pseudo_Shuff_dilation_WS_GN, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.pading = kernel_size // 2
+        self.degree = degree
+        self.stride = stride
+        self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
+        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+        gp = 1 if out_channels % 8 != 0 else out_channels // 8
+        self.gn = nn.GroupNorm(gp, out_channels, affine=False)
+        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    def forward(self, x):
+        '''
+        x: tensor of shape (B,C,H,W)
+        '''
+        x = self.gn(x)
+        y = self.convmorph(x)  # / self.degree
+        y = self.pixel_shuffle(y)
+        y = self.pool_(y)
+        if self.stride == 2:
+            y = self.pool(y)
+        return y
+
+class WSPseudo_Shuff_dilation_WS_GN(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
+        super(Pseudo_Shuff_dilation_WS_GN, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.pading = kernel_size // 2
+        self.degree = degree
+        self.stride = stride
+        self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
+        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+        gp = 1 if out_channels % 8 != 0 else out_channels // 8
+        self.gn = nn.GroupNorm(gp, out_channels, affine=False)
+        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+    def forward(self, x, x_id, stride, bn_train=False):
+        '''
+        x: tensor of shape (B,C,H,W)
+        '''
+        x = self.gn(x)
+        y = self.convmorph(x)  # / self.degree
+        y = self.pixel_shuffle(y)
+        y = self.pool_(y)
+        if stride == 2:
+            y = self.pool(y)
+        return y
+
+class Pseudo_Shuff_dilation(nn.Module):
   def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
-    super(Pseudo_Morphology, self).__init__()
-    self.in_channels = in_channels
-    self.out_channels = out_channels
-    self.kernel_size = kernel_size
-    self.pading = kernel_size// 2
-    self.degree = degree
-    self.stride = stride 
-    self.convmorph = nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=1, bias=False)
-    self.bn = nn.BatchNorm2d(out_channels, affine=False)
-    self.pool = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
-    
-  def forward(self, x):
-    x = self.bn(x)
-    x_tmp = (x ** (self.degree )) #/ ((x ** (self.degree)).sum())
-    y = self.convmorph(x_tmp)# / self.degree
-    if self.stride==2:
-      x = self.pool(x)
-    y = torch.max(y, x)
-    y = self.bn(y)
-    return y
-
-class WSPseudo_Morphology(nn.Module):
-  def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
-    super(WSPseudo_Morphology, self).__init__()
-    self.in_channels = in_channels
-    self.out_channels = out_channels
-    self.kernel_size = kernel_size
-    self.pading = kernel_size// 2
-    self.degree = degree
-    self.stride = stride 
-    self.convmorph = nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=1, bias=False)
-    self.bn = nn.BatchNorm2d(out_channels, affine=False)
-    self.pool = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
-
-  def forward(self, x, x_id, stride, bn_train=False):
-    x = self.bn(x)
-    x_tmp = (x ** (self.degree )) #/ ((x ** (self.degree)).sum())
-    y = self.convmorph(x_tmp)# / self.degree
-    if self.stride==2:
-      x = self.pool(x)
-    y = torch.max(y, x)
-    y = self.bn(y)
-    return y
-
-# class WSPseudo_Morphology(nn.Module):
-#     def __init__(self, in_channels, out_channels, kernel_size=5, degree=5, stride=1):
-#         super(WSPseudo_Morphology, self).__init__()
-#         self.in_channels = in_channels
-#         self.out_channels = out_channels
-#         self.kernel_size = kernel_size
-#         self.pading = kernel_size// 2
-#         self.type = type
-#         self.degree = degree
-#         self.stride = stride 
-#         self.convmorph = nn.Conv2d(in_channels, out_channels, kernel_size, self.stride, padding=self.pading)
-#         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-#         self.bn = nn.BatchNorm2d(out_channels, affine=False)
-#         self.pool = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
-#         self.relu =  nn.ReLU()
-
-#     def forward(self, x, x_id, stride, bn_train=False):
-#         # x = self.bn(x)
-#         # x_tmp = (x ** (self.degree )) #/ ((x ** (self.degree)).sum())
-#         # y = self.convmorph(x_tmp)# / self.degree
-#         # if self.stride==2:
-#         #   x = self.pool(x)
-#         # y = torch.max(y, x)
-#         # y = self.bn(y)
-#         # return y
-#         return x
-
-class Pseudo_Shuff(nn.Module):
-  def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
-      super(Pseudo_Shuff, self).__init__()
+      super(Pseudo_Shuff_dilation, self).__init__()
       self.in_channels = in_channels
       self.out_channels = out_channels
       self.kernel_size = kernel_size
@@ -522,9 +595,9 @@ class Pseudo_Shuff(nn.Module):
         y = self.pool(y)
       return y
 
-class WSPseudo_Shuff(nn.Module):
+class WSPseudo_Shuff_dilation(nn.Module):
   def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
-      super(WSPseudo_Shuff, self).__init__()
+      super(WSPseudo_Shuff_dilation, self).__init__()
       self.in_channels = in_channels
       self.out_channels = out_channels
       self.kernel_size = kernel_size
@@ -612,7 +685,7 @@ OPERATIONS_small = {
     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
     3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1), 
     4: lambda c_in, c_out, stride, shape, affine: Identity() if stride == 1 else FactorizedReduce(c_in, c_out, shape, affine=affine),
-    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
+    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_dilation_WS(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
 
@@ -622,7 +695,7 @@ OPERATIONS_search_small = {
     2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
     3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
     4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),
-    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
+    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation_WS(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
 OPERATIONS_small_with_erosion = {
@@ -631,7 +704,7 @@ OPERATIONS_small_with_erosion = {
     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
     3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1), 
     4: lambda c_in, c_out, stride, shape, affine: Identity() if stride == 1 else FactorizedReduce(c_in, c_out, shape, affine=affine),
-    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
+    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
     6: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_erosion(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
@@ -642,7 +715,7 @@ OPERATIONS_search_small_with_erosion = {
     2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
     3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
     4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),
-    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
+    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
     6: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_erosion(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
