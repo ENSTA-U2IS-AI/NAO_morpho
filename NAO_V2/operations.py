@@ -698,25 +698,23 @@ OPERATIONS_search_small = {
     5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation_WS(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
-OPERATIONS_small_with_erosion = {
+OPERATIONS_small_WS_GN = {
     0: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 3, stride, 1, shape, affine=affine),
     1: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 5, stride, 2, shape, affine=affine),
     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
     3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1), 
     4: lambda c_in, c_out, stride, shape, affine: Identity() if stride == 1 else FactorizedReduce(c_in, c_out, shape, affine=affine),
-    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
-    6: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_erosion(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
+    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_dilation_WS_GN(c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
 
-OPERATIONS_search_small_with_erosion = {
+OPERATIONS_search_small_WS_GN = {
     0: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 3, 1, affine=affine),
     1: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 5, 2, affine=affine),
     2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
     3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
     4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),
-    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
-    6: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_erosion(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
+    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation_WS_GN(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
 OPERATIONS_middle = {

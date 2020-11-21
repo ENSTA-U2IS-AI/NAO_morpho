@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 from model import NASNetworkCIFAR, NASNetworkImageNet
 from model_search import NASWSNetworkCIFAR, NASWSNetworkImageNet
-from operations import OPERATIONS_search_small, OPERATIONS_search_middle, OPERATIONS_search_small_with_erosion
+from operations import OPERATIONS_search_small, OPERATIONS_search_middle, OPERATIONS_search_small_WS_GN
 from controller import NAO
 
 parser = argparse.ArgumentParser(description='NAO Search')
@@ -29,7 +29,7 @@ parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10,
 parser.add_argument('--zip_file', action='store_true', default=False)
 parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
-parser.add_argument('--search_space', type=str, default='small', choices=['small', 'middle', 'small_with_erosion'])
+parser.add_argument('--search_space', type=str, default='small', choices=['small', 'middle', 'small_with_WS_GN'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=64)
 parser.add_argument('--child_eval_batch_size', type=int, default=500)
@@ -649,8 +649,8 @@ def main():
     
     if args.search_space == 'small':
         OPERATIONS = OPERATIONS_search_small
-    elif args.search_space == 'small_with_erosion':
-        OPERATIONS = OPERATIONS_search_small_with_erosion
+    elif args.search_space == 'small_with_WS_GN':
+        OPERATIONS = OPERATIONS_search_small_WS_GN
     elif args.search_space == 'middle':
         OPERATIONS = OPERATIONS_search_middle
     args.child_num_ops = len(OPERATIONS)
