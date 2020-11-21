@@ -480,36 +480,36 @@ class Pseudo_Shuff_dilation_WS(nn.Module):
             y = self.pool(y)
         return y
 
-
 class WSPseudo_Shuff_dilation_WS(nn.Module):
     """
     the first WS: weights shared
     the second WS:  Weight Standardization
     """
-    def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
+    def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
         super(WSPseudo_Shuff_dilation_WS, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
-        self.pading = kernel_size // 2
+        self.padding = kernel_size// 2
         self.degree = degree
-        self.stride = stride
+        self.stride = stride 
         self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-        self.bn = nn.BatchNorm2d(out_channels, affine=False)
-        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
+        self.pool = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
+        self.bn = nn.BatchNorm2d(out_channels, affine=True)
+        
     def forward(self, x, x_id, stride, bn_train=False):
         '''
         x: tensor of shape (B,C,H,W)
         '''
         x = self.bn(x)
-        y = self.convmorph(x)  # / self.degree
+        y = self.convmorph(x)# / self.degree
+        # y = F.conv2d(x, self.w, stride=self.stride, padding=self.padding)
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
-        if stride == 2:
-            y = self.pool(y)
+        if stride==2:
+          y = self.pool(y)
         return y
 
 class Pseudo_Shuff_dilation_WS_GN(nn.Module):
@@ -541,32 +541,33 @@ class Pseudo_Shuff_dilation_WS_GN(nn.Module):
         return y
 
 class WSPseudo_Shuff_dilation_WS_GN(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
-        super(Pseudo_Shuff_dilation_WS_GN, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.pading = kernel_size // 2
-        self.degree = degree
-        self.stride = stride
-        self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
-        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-        gp = 1 if out_channels % 8 != 0 else out_channels // 8
-        self.gn = nn.GroupNorm(gp, out_channels, affine=False)
-        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-    def forward(self, x, x_id, stride, bn_train=False):
-        '''
-        x: tensor of shape (B,C,H,W)
-        '''
-        x = self.gn(x)
-        y = self.convmorph(x)  # / self.degree
-        y = self.pixel_shuffle(y)
-        y = self.pool_(y)
-        if stride == 2:
-            y = self.pool(y)
-        return y
+  def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
+      super(WSPseudo_Shuff_dilation_WS_GN, self).__init__()
+      self.in_channels = in_channels
+      self.out_channels = out_channels
+      self.kernel_size = kernel_size
+      self.padding = kernel_size// 2
+      self.degree = degree
+      self.stride = stride 
+      self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+      self.pixel_shuffle = nn.PixelShuffle(kernel_size)
+      self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+      self.pool = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
+      gp = 1 if out_channels % 8 != 0 else out_channels // 8
+      self.gn = nn.GroupNorm(gp, out_channels, affine=True)
+      
+  def forward(self, x, x_id, stride, bn_train=False):
+      '''
+      x: tensor of shape (B,C,H,W)
+      '''
+      x = self.gn(x)
+      y = self.convmorph(x)# / self.degree
+      # y = F.conv2d(x, self.w, stride=self.stride, padding=self.padding)
+      y = self.pixel_shuffle(y)
+      y = self.pool_(y)
+      if stride==2:
+        y = self.pool(y)
+      return y
 
 class Pseudo_Shuff_dilation(nn.Module):
   def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
