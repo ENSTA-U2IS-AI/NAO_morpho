@@ -914,3 +914,19 @@ OPERATIONS_search_without_mor_ops = {
     7:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_cweight_3×3'
     8:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
+
+'''
+normal operations for NAODeeplab
+'''
+OPERATIONS_Deeplab ={
+    0: lambda c_in, c_out, stride, affine: CWeightNet(c_in, c_out, affine=affine),  # 'cweight_3×3'
+    1: lambda c_in, c_out, stride, affine: ConvNet(c_in, c_out, affine=affine),  # 'conv_3×3'
+    2: lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
+    3: lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
+}
+OPERATIONS_Search_Deeplab ={
+    0: lambda c_in, c_out, stride, affine: CWeightNet(c_in, c_out, affine=affine),  # 'cweight_3×3'
+    1: lambda c_in, c_out, stride, affine: ConvNet(c_in, c_out, affine=affine),  # 'conv_3×3'
+    2: lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
+    3: lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
+}
