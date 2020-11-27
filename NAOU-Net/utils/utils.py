@@ -528,12 +528,12 @@ def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
           if 0<=p1<2:
             op1 = np.random.randint(0, 5)
           else:
-            op1 = np.random.randint(5, 9)
+            op1 = np.random.randint(5, 10)
           p2 = np.random.randint(0, i)
           if 0<=p2<2:
             op2 = np.random.randint(0 ,5)
           else:
-            op2 = np.random.randint(5 ,9)
+            op2 = np.random.randint(5 ,10)
         arch.extend([p1, op1, p2, op2])
       return arch
     def _get_up_arch():
@@ -542,27 +542,27 @@ def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
         if i==2:
           p1 = np.random.randint(0, i)
           if p1==0:
-            op1 = np.random.randint(5, 9)
+            op1 = np.random.randint(5, 10)
           else:
-            op1 = np.random.randint(9, 11)
+            op1 = np.random.randint(10, 12)
           p2 = np.random.randint(0, i)
           if p2==p1:
             p2 = 1-p1
           if p2==0:
-            op2 = np.random.randint(5 ,9)
+            op2 = np.random.randint(5 ,10)
           else:
-            op2 = np.random.randint(9 ,11)
+            op2 = np.random.randint(10 ,12)
         else:
           p1 = np.random.randint(0, i)
           if p1 == 1:
-            op1 = np.random.randint(9, 11)
+            op1 = np.random.randint(10, 12)
           else:
-            op1 = np.random.randint(5, 9)
+            op1 = np.random.randint(5, 10)
           p2 = np.random.randint(0, i)
           if p2 == 1:
-            op2 = np.random.randint(9 ,11)
+            op2 = np.random.randint(10 ,12)
           else:
-            op2 = np.random.randint(5 ,9)
+            op2 = np.random.randint(5 ,10)
         arch.extend([p1, op1, p2, op2])
       return arch
 

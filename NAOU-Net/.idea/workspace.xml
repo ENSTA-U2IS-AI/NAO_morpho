@@ -1,115 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="c46161be-001c-49c7-9553-453e4c81a4c4" name="Default Changelist" comment="" />
-    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <list default="true" id="c46161be-001c-49c7-9553-453e4c81a4c4" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/NAO_UNet.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/autoaugment.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/controller.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/decoder.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/encoder.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/model/model.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ops/genotype.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/ops/operations.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/search/model_search.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_cifar.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test_controller.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_BSD500.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_NAOUNet_Berkeley.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_controller.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_search.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/train_search_BSD500.sh" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/cell_visualize/NAO_Unet_genotype/DownC" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/cell_visualize/NAO_Unet_genotype/DownC.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/cell_visualize/NAO_Unet_genotype/UpC" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/cell_visualize/NAO_Unet_genotype/UpC.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/dataset.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/evaluate.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/genotype.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/image.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/mat_pre.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/metric_F1.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/mosaic.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/visualize.py" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
-  </component>
-  <component name="FUSProjectUsageTrigger">
-    <session id="1639943311">
-      <usages-collector id="statistics.lifecycle.project">
-        <counts>
-          <entry key="project.closed" value="2" />
-          <entry key="project.open.time.0" value="2" />
-          <entry key="project.open.time.2" value="1" />
-          <entry key="project.opened" value="3" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.open">
-        <counts>
-          <entry key="jpg" value="1" />
-          <entry key="py" value="15" />
-          <entry key="sh" value="2" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.open">
-        <counts>
-          <entry key="Image" value="1" />
-          <entry key="PLAIN_TEXT" value="2" />
-          <entry key="Python" value="15" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.extensions.edit">
-        <counts>
-          <entry key="py" value="2821" />
-        </counts>
-      </usages-collector>
-      <usages-collector id="statistics.file.types.edit">
-        <counts>
-          <entry key="Python" value="2821" />
-        </counts>
-      </usages-collector>
-    </session>
-  </component>
-  <component name="FileEditorManager">
-    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/search/model_search.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="295">
-              <caret line="157" column="61" lean-forward="true" selection-start-line="157" selection-start-column="61" selection-end-line="157" selection-end-column="61" />
-              <folding>
-                <element signature="e#0#12#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/data/dataset.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="608">
-              <caret line="32" column="23" selection-start-line="32" selection-start-column="23" selection-end-line="32" selection-end-column="23" />
-              <folding>
-                <element signature="e#0#12#0" expanded="true" />
-                <marker date="1595580250188" expanded="true" signature="147:152" ph="..." />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/data/BSR/BSDS500/data/images/train/8143.jpg">
-          <provider selected="true" editor-type-id="images" />
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/ops/operations.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="427">
-              <caret line="696" column="103" selection-start-line="696" selection-start-column="103" selection-end-line="696" selection-end-column="103" />
-              <folding>
-                <element signature="e#0#12#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/utils/utils.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="8968">
-              <caret line="486" column="71" selection-start-line="486" selection-start-column="63" selection-end-line="486" selection-end-column="71" />
-              <folding>
-                <element signature="e#0#9#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/train_cifar.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="95">
-              <caret line="5" column="14" selection-start-line="5" selection-start-column="14" selection-end-line="5" selection-end-column="14" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-    </leaf>
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -118,81 +50,19 @@
       </list>
     </option>
   </component>
-  <component name="IdeDocumentHistory">
-    <option name="CHANGED_PATHS">
-      <list>
-        <option value="$PROJECT_DIR$/utils/utils.py" />
-        <option value="$PROJECT_DIR$/ops/genotype.py" />
-        <option value="$PROJECT_DIR$/train_NAOUNet_Berkeley.sh" />
-        <option value="$PROJECT_DIR$/train_search.py" />
-        <option value="$PROJECT_DIR$/ops/operations.py" />
-        <option value="$PROJECT_DIR$/search/model_search.py" />
-        <option value="$PROJECT_DIR$/data/dataset.py" />
-      </list>
-    </option>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="-9" />
-    <option name="y" value="-9" />
-    <option name="width" value="1940" />
-    <option name="height" value="1050" />
-  </component>
-  <component name="ProjectView">
-    <navigator proportions="" version="1">
-      <foldersAlwaysOnTop value="true" />
-    </navigator>
-    <panes>
-      <pane id="Scope" />
-      <pane id="ProjectPane">
-        <subPane>
-          <expand>
-            <path>
-              <item name="NAO_UNet" type="b2602c69:ProjectViewProjectNode" />
-              <item name="NAO_UNet" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="NAO_UNet" type="b2602c69:ProjectViewProjectNode" />
-              <item name="NAO_UNet" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="NAO_UNet" type="b2602c69:ProjectViewProjectNode" />
-              <item name="NAO_UNet" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-              <item name="BSR" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="NAO_UNet" type="b2602c69:ProjectViewProjectNode" />
-              <item name="NAO_UNet" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-              <item name="BSR" type="462c0819:PsiDirectoryNode" />
-              <item name="BSDS500" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="NAO_UNet" type="b2602c69:ProjectViewProjectNode" />
-              <item name="NAO_UNet" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-              <item name="BSR" type="462c0819:PsiDirectoryNode" />
-              <item name="BSDS500" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="NAO_UNet" type="b2602c69:ProjectViewProjectNode" />
-              <item name="NAO_UNet" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-              <item name="BSR" type="462c0819:PsiDirectoryNode" />
-              <item name="BSDS500" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-              <item name="images" type="462c0819:PsiDirectoryNode" />
-            </path>
-          </expand>
-          <select />
-        </subPane>
-      </pane>
-    </panes>
+  <component name="ProjectId" id="1kmf9vQgHfxNnmKSIz0NvDBUdEe" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../NAO_Seg" />
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
@@ -201,18 +71,6 @@
       <recent name="G:\NAO_UNet\search" />
       <recent name="G:\NAO_UNet\utils" />
     </key>
-  </component>
-  <component name="RunDashboard">
-    <option name="ruleStates">
-      <list>
-        <RuleState>
-          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
-        </RuleState>
-        <RuleState>
-          <option name="name" value="StatusDashboardGroupingRule" />
-        </RuleState>
-      </list>
-    </option>
   </component>
   <component name="RunManager">
     <configuration name="genotype" type="PythonConfigurationType" factoryName="Python" temporary="true">
@@ -242,6 +100,7 @@
       </list>
     </recent_temporary>
   </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="SvnConfiguration">
     <configuration />
   </component>
@@ -255,155 +114,13 @@
     </task>
     <servers />
   </component>
-  <component name="ToolWindowManager">
-    <frame x="-7" y="-7" width="1550" height="838" extended-state="6" />
-    <editor active="true" />
-    <layout>
-      <window_info id="Favorites" order="0" side_tool="true" />
-      <window_info active="true" content_ui="combo" id="Project" order="1" visible="true" weight="0.24570674" />
-      <window_info id="Structure" order="2" side_tool="true" weight="0.25" />
-      <window_info anchor="bottom" id="Terminal" order="0" />
-      <window_info anchor="bottom" id="Event Log" order="1" side_tool="true" />
-      <window_info anchor="bottom" id="Python Console" order="2" />
-      <window_info anchor="bottom" id="Message" order="3" />
-      <window_info anchor="bottom" id="Find" order="4" />
-      <window_info anchor="bottom" id="Version Control" order="5" show_stripe_button="false" />
-      <window_info anchor="bottom" id="Run" order="6" visible="true" weight="0.1388102" />
-      <window_info anchor="bottom" id="Debug" order="7" weight="0.4" />
-      <window_info anchor="bottom" id="Cvs" order="8" weight="0.25" />
-      <window_info anchor="bottom" id="Inspection" order="9" weight="0.4" />
-      <window_info anchor="bottom" id="TODO" order="10" />
-      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
-      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
-      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
-    </layout>
-  </component>
   <component name="VcsContentAnnotationSettings">
     <option name="myLimit" value="2678400000" />
   </component>
-  <component name="editorHistoryManager">
-    <entry file="file://G:/NAO_V2/operations.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4398">
-          <caret line="696" column="27" lean-forward="true" selection-start-line="533" selection-end-line="696" selection-end-column="27" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://G:/NAO_V2/model.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="342">
-          <caret line="267" lean-forward="true" selection-start-line="176" selection-end-line="267" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://G:/NAO_V2/genotype.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="57">
-          <caret line="3" selection-start-line="3" selection-end-line="22" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/utils/utils.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8968">
-          <caret line="486" column="71" selection-start-line="486" selection-start-column="63" selection-end-line="486" selection-end-column="71" />
-          <folding>
-            <element signature="e#0#9#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/train_cifar.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="95">
-          <caret line="5" column="14" selection-start-line="5" selection-start-column="14" selection-end-line="5" selection-end-column="14" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/model/model.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="677">
-          <caret line="124" column="45" selection-start-line="124" selection-start-column="33" selection-end-line="124" selection-end-column="45" />
-          <folding>
-            <element signature="e#0#21#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/Desktop/Yufei/script.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="399">
-          <caret line="249" column="17" selection-start-line="249" selection-start-column="11" selection-end-line="249" selection-end-column="17" />
-          <folding>
-            <element signature="e#0#18#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/train_search.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="361">
-          <caret line="757" column="44" selection-start-line="757" selection-start-column="31" selection-end-line="757" selection-end-column="44" />
-          <folding>
-            <element signature="e#0#9#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/train_NAOUNet_Berkeley.sh">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="323">
-          <caret line="17" selection-start-line="17" selection-end-line="17" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/train_NAONet_V2_36_cifar10.sh">
-      <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <caret selection-end-line="17" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/ops/genotype.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="38">
-          <caret line="2" selection-start-line="2" selection-end-line="20" selection-end-column="1" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/ops/operations.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="427">
-          <caret line="696" column="103" selection-start-line="696" selection-start-column="103" selection-end-line="696" selection-end-column="103" />
-          <folding>
-            <element signature="e#0#12#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/search/model_search.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="295">
-          <caret line="157" column="61" lean-forward="true" selection-start-line="157" selection-start-column="61" selection-end-line="157" selection-end-column="61" />
-          <folding>
-            <element signature="e#0#12#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/data/BSR/BSDS500/data/images/train/8143.jpg">
-      <provider selected="true" editor-type-id="images" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/data/dataset.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="608">
-          <caret line="32" column="23" selection-start-line="32" selection-start-column="23" selection-end-line="32" selection-end-column="23" />
-          <folding>
-            <element signature="e#0#12#0" expanded="true" />
-            <marker date="1595580250188" expanded="true" signature="147:152" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
+  <component name="WindowStateProjectService">
+    <state x="793" y="308" width="424" height="491" key="FileChooserDialogImpl" timestamp="1606465570739">
+      <screen x="72" y="27" width="1848" height="1053" />
+    </state>
+    <state x="793" y="308" width="424" height="491" key="FileChooserDialogImpl/72.27.1848.1053/1920.0.1920.1080@72.27.1848.1053" timestamp="1606465570739" />
   </component>
 </project>

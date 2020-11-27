@@ -11,8 +11,9 @@ Ops =    {
             6:'cweight_3×3',
             7:'conv_3×3',
             8:'pix_shuf_3×3',
-            9:'up_cweight_3×3',
-            10:'up_conv_3×3'
+            9:'Mor_gradient',
+            10:'up_cweight_3×3',
+            11:'up_conv_3×3'
 }
 
 # Ops =    {
@@ -53,5 +54,5 @@ def parse_seq_to_arch(arch,nodes=5):
 if __name__ == '__main__':
     arch = parse_seq_to_arch(fixed_arch)
     print(arch[0])
-    down_cell_seq = parse_arch_to_ops_seq(arch[0])
-    print(down_cell_seq)
+    # down_cell_seq = parse_arch_to_ops_seq(arch[0])
+    # print(down_cell_seq)
