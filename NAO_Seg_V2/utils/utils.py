@@ -416,7 +416,7 @@ def save_checkpoint(state, is_best, save):
         shutil.copyfile(filename, best_filename)
       
 
-def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
+def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True):
     if hasattr(model, 'module'):
         model = model.module
     state_dict = {
@@ -425,8 +425,7 @@ def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is
         'epoch': epoch,
         'step': step,
         'optimizer': optimizer.state_dict(),
-        'best_OIS': best_OIS,
-        'best_ODS': best_ODS,
+        'best_OIS': best_OIS
     }
     filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
     torch.save(state_dict, filename)
@@ -449,9 +448,8 @@ def load(model_path):
     step = state_dict['step']
     optimizer_state_dict = state_dict['optimizer']
     best_OIS = state_dict.get('best_OIS')
-    best_ODS = state_dict.get('best_ODS')
     print('model loaded!')
-    return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS
+    return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS
 
 
 # def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True):
@@ -511,122 +509,18 @@ def sample_arch(arch_pool, prob=None):
     arch = arch_pool[index]
     return arch
 
-
-def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
-    def _get_down_arch():
-      arch = []
-      for i in range(2, num_nodes+2):
-        if i==2:
-          p1 = np.random.randint(0, i)
-          op1 = np.random.randint(0, 5)
-          p2 = np.random.randint(0, i)
-          if p2==p1:
-            p2 = 1-p1
-          op2 = np.random.randint(0 ,5)
-        else:
-          p1 = np.random.randint(0, i)
-          if 0<=p1<2:
-            op1 = np.random.randint(0, 5)
-          else:
-            op1 = np.random.randint(5, 10)
-          p2 = np.random.randint(0, i)
-          if 0<=p2<2:
-            op2 = np.random.randint(0 ,5)
-          else:
-            op2 = np.random.randint(5 ,10)
-        arch.extend([p1, op1, p2, op2])
-      return arch
-    def _get_up_arch():
-      arch = []
-      for i in range(2, num_nodes+2):
-        if i==2:
-          p1 = np.random.randint(0, i)
-          if p1==0:
-            op1 = np.random.randint(5, 10)
-          else:
-            op1 = np.random.randint(10, 12)
-          p2 = np.random.randint(0, i)
-          if p2==p1:
-            p2 = 1-p1
-          if p2==0:
-            op2 = np.random.randint(5 ,10)
-          else:
-            op2 = np.random.randint(10 ,12)
-        else:
-          p1 = np.random.randint(0, i)
-          if p1 == 1:
-            op1 = np.random.randint(10, 12)
-          else:
-            op1 = np.random.randint(5, 10)
-          p2 = np.random.randint(0, i)
-          if p2 == 1:
-            op2 = np.random.randint(10 ,12)
-          else:
-            op2 = np.random.randint(5 ,10)
-        arch.extend([p1, op1, p2, op2])
-      return arch
-
-     # generate archs without mor ops
-    def _get_down_arch_without_mor_ops():
-      arch = []
-      for i in range(2, num_nodes+2):
-        if i==2:
-          p1 = np.random.randint(0, i)
-          op1 = np.random.randint(0, 4)
-          p2 = np.random.randint(0, i)
-          if p2==p1:
-            p2 = 1-p1
-          op2 = np.random.randint(0 ,4)
-        else:
-          p1 = np.random.randint(0, i)
-          if 0<=p1<2:
-            op1 = np.random.randint(0, 4)
-          else:
-            op1 = np.random.randint(4, 7)
-          p2 = np.random.randint(0, i)
-          if 0<=p2<2:
-            op2 = np.random.randint(0 ,4)
-          else:
-            op2 = np.random.randint(4 ,7)
-        arch.extend([p1, op1, p2, op2])
-      return arch
-
-    def _get_up_arch_without_mor_ops():
-      arch = []
-      for i in range(2, num_nodes+2):
-        if i==2:
-          p1 = np.random.randint(0, i)
-          if p1==0:
-            op1 = np.random.randint(4, 7)
-          else:
-            op1 = np.random.randint(7, 9)
-          p2 = np.random.randint(0, i)
-          if p2==p1:
-            p2 = 1-p1
-          if p2==0:
-            op2 = np.random.randint(4 ,7)
-          else:
-            op2 = np.random.randint(7 ,9)
-        else:
-          p1 = np.random.randint(0, i)
-          if p1 == 1:
-            op1 = np.random.randint(7, 9)
-          else:
-            op1 = np.random.randint(4, 7)
-          p2 = np.random.randint(0, i)
-          if p2 == 1:
-            op2 = np.random.randint(7 ,9)
-          else:
-            op2 = np.random.randint(4 ,7)
-        arch.extend([p1, op1, p2, op2])
-      return arch
-      
-    if search_space=='with_mor_ops':
-      archs = [[_get_down_arch(), _get_up_arch()] for i in range(n)] #[[[DownSOps],[UpSOps]]]
-    else:
-      archs = [[_get_down_arch_without_mor_ops(), _get_up_arch_without_mor_ops()] for i in range(n)] #[[[DownSOps],[UpSOps]]]
+def generate_arch(n, num_nodes, num_ops=7):
+    def _get_arch():
+        arch = []
+        for i in range(2, num_nodes+2):
+            p1 = np.random.randint(0, i)
+            op1 = np.random.randint(0, num_ops)
+            p2 = np.random.randint(0, i)
+            op2 = np.random.randint(0 ,num_ops)
+            arch.extend([p1, op1, p2, op2])
+        return arch
+    archs = [[_get_arch(), _get_arch()] for i in range(n)] #[[[conv],[reduc]]]
     return archs
-
 
 def build_dag(arch):
     if arch is None:

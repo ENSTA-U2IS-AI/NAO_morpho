@@ -13,4 +13,5 @@ fixed_arc="1 4 0 2 1 3 2 7 2 5 0 1 2 8 3 7 2 7 2 8 1 10 0 7 1 9 2 7 0 6 2 6 2 7 
 python train_BSD500.py \
   --data=$DATA_DIR \
   --arch="$fixed_arc" \
+  --search_space small_with_mor \
   --output_dir=$OUTPUT_DIR | tee -a $OUTPUT_DIR/train.log

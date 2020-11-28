@@ -10,7 +10,6 @@ import torch.utils
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 from model.model import NASUNetBSD
-from model.DexiNed import DexiNet
 from search.model_search import NASUNetSegmentationWS
 import torchvision.transforms as transforms
 import os
@@ -24,7 +23,7 @@ parser.add_argument('--data', type=str, default='data')
 parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
-parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
+parser.add_argument('--search_space', type=str, default='small_with_mor', choices=['small_with_mor', 'small_without_mor'])
 parser.add_argument('--batch_size', type=int, default=8)
 parser.add_argument('--eval_batch_size', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=50)
@@ -53,7 +52,6 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 def train(train_queue, model, optimizer, global_step, criterion):
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
-    ODS = utils.AvgrageMeter()
 
     # set the mode of model to train
     model.train()
@@ -62,32 +60,29 @@ def train(train_queue, model, optimizer, global_step, criterion):
         input = input.cuda().requires_grad_()
         target = target.cuda()
 
+        optimizer.zero_grad()
         img_predict = model(input)
         loss = criterion(img_predict, target.long())
 
-        optimizer.zero_grad()
         global_step += 1
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
         optimizer.step()
 
         ois = evaluate.evaluation_OIS(img_predict, target)
-        ods = evaluate.evaluation_ODS(img_predict, target)
         n = input.size(0)
         objs.update(loss.data, n)
         OIS.update(ois, n)
-        ODS.update(ods,n)
 
         if (step+1) % 25 == 0:
-            logging.info('train %03d loss %e OIS %f ODS %f ', step+1, objs.avg, OIS.avg, ODS.avg)
+            logging.info('train %03d loss %e OIS %f', step+1, objs.avg, OIS.avg)
 
-    return OIS.avg, ODS.avg, objs.avg, global_step
+    return OIS.avg, objs.avg, global_step
 
 
 def valid(valid_queue, model, criterion):
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
-    ODS = utils.AvgrageMeter()
 
     # set the mode of model to eval
     model.eval()
@@ -101,18 +96,15 @@ def valid(valid_queue, model, criterion):
             loss = criterion(img_predict, target.long())
             
             ois = evaluate.evaluation_OIS(img_predict, target)
-            ods = evaluate.evaluation_ODS(img_predict, target)
 
             n = input.size(0)
             objs.update(loss.data, n)
             OIS.update(ois, n)
-            ODS.update(ods,n)
-
         
             if (step+1) % 25 == 0:
-                logging.info('valid %03d loss %e OIS %f ODS %f ', step+1, objs.avg, OIS.avg, ODS.avg)
+                logging.info('valid %03d loss %e OIS %f ', step+1, objs.avg, OIS.avg)
 
-    return OIS.avg, ODS.avg, objs.avg
+    return OIS.avg, objs.avg
 
 
 def test(test_queue, model, criterion):
@@ -163,9 +155,9 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
         valid_data, batch_size=args.eval_batch_size, pin_memory=True, num_workers=16)
 
 
-    model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels, nodes=args.nodes,
-                       use_aux_head=args.use_aux_head, arch=args.arch, use_softmax_head=False,
-                       double_down_channel=False)
+    model =  NASUNetBSD(args, nclass=args.num_class, depth=args.child_layers, channels=args.child_channels,
+               nodes=args.child_nodes, use_aux_head=args.child_use_aux_head, arch=args.arch,
+               use_softmax_head=False, keep_prob=0.6, drop_path_keep_prob=0.8, steps=args.steps)
     
     # # Get computing device
     # device = torch.device('cpu' if torch.cuda.device_count() == 0
@@ -194,8 +186,8 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
         momentum=0.9,
         weight_decay=args.l2_reg,
     )
-    # if optimizer_state_dict is not None:
-    #     optimizer.load_state_dict(optimizer_state_dict)
+    if optimizer_state_dict is not None:
+        optimizer.load_state_dict(optimizer_state_dict)
     
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min, epoch)
@@ -219,32 +211,28 @@ def main():
     loss = []
     accuracy_OIS = []
 
-    args.steps = int(np.ceil(2000 / args.batch_size)) * args.epochs
+    args.steps = int(np.ceil(4000 / args.batch_size)) * args.epochs
     logging.info("Args = %s", args)
     output_dir = './exp/NAONet_BSD_500/'
-    _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS = utils.load(output_dir)
+    _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS = utils.load(output_dir)
     build_fn = get_builder(args.dataset)
     train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler = build_fn(model_state_dict, optimizer_state_dict, epoch=epoch-1)
-    
-    val_loss = 10
+
     while epoch < args.epochs:
         # logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
         logging.info('epoch %d lr %e', epoch, optimizer.param_groups[0]['lr'])
-        train_OIS, train_ODS, train_obj, step = train(train_queue, model, optimizer, step, train_criterion)
-        logging.info('train_OIS %f train_ODS %f', train_OIS,train_ODS)
-        valid_OIS, valid_ODS, valid_obj = valid(valid_queue, model, eval_criterion)
-        logging.info('valid_OIS %f valid_ODS %f', valid_OIS, valid_ODS)
+        train_OIS, train_obj, step = train(train_queue, model, optimizer, step, train_criterion)
+        logging.info('train_OIS %f ', train_OIS)
+        valid_OIS, valid_obj = valid(valid_queue, model, eval_criterion)
+        logging.info('valid_OIS %f ', valid_OIS)
         epoch += 1
         scheduler.step(valid_obj)
         is_best = False
         if (valid_OIS>best_OIS) :
-        # if (val_loss > valid_obj) or (valid_OIS>best_OIS) :
-            val_loss = valid_obj
             best_OIS = valid_OIS
-            best_ODS = valid_ODS
             is_best = True
         if is_best:
-          utils.save(args.output_dir, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best)
+            utils.save(args.output_dir, args, model, epoch, step, optimizer, best_OIS, is_best)
         #draw the curve
         with open('./curve/accuracy_loss_validation.txt','a+')as f:
           f.write(str(valid_obj.cpu().numpy()))

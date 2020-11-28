@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
 from model.model import NASUNetBSD
 from search.model_search import NASUNetSegmentationWS
-from ops.operations import OPERATIONS_search_small,OPERATIONS_small,OPERATIONS_without_mor_ops,OPERATIONS_search_without_mor_ops
+from ops.operations import OPERATIONS_search_with_mor, OPERATIONS_search_without_mor
 from controller import NAO
 
 parser = argparse.ArgumentParser(description='NAO Search')
@@ -27,11 +27,11 @@ parser.add_argument('--dataset', type=str, default='BSD500')
 parser.add_argument('--zip_file', action='store_true', default=False)
 parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
-parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
+parser.add_argument('--search_space', type=str, default='small_with_mor', choices=['small_with_mor', 'small_without_mor'])
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=8)
 parser.add_argument('--child_eval_batch_size', type=int, default=4)
-parser.add_argument('--child_epochs', type=int, default=150)
+parser.add_argument('--child_epochs', type=int, default=50)
 parser.add_argument('--child_layers', type=int, default=4)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=16)
@@ -49,9 +49,9 @@ parser.add_argument('--child_lr', type=float, default=0.1)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=150)#100
+parser.add_argument('--controller_seed_arch', type=int, default=300)#100
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=50)#60
+parser.add_argument('--controller_new_arch', type=int, default=100)#60
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -124,8 +124,8 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     valid_queue = torch.utils.data.DataLoader(
         valid_data, batch_size=args.child_eval_batch_size,pin_memory=True, num_workers=16)
        
-    model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=args.num_class, nodes=args.child_nodes, chs=args.child_channels, 
-                  keep_prob=args.child_keep_prob,use_softmax_head=False,use_aux_head=args.child_use_aux_head)
+    model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=args.num_class, nodes=args.child_nodes, channels=args.child_channels,
+                  keep_prob=args.child_keep_prob,use_softmax_head=False,use_aux_head=args.child_use_aux_head,steps=args.steps,drop_path_keep_prob=args.child_drop_path_keep_prob)
     model = model.cuda()
     
     # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
@@ -169,7 +169,7 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         target = target.cuda()
 
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
-        img_predict = model(input, arch)
+        img_predict = model(input, arch,global_step)
         loss = criterion(img_predict, target.long())
 
         optimizer.zero_grad()
@@ -186,15 +186,12 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         if (step+1) % 25 == 0:
             logging.info('Train %03d loss %e OIS %f ', step+1, objs.avg, OIS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0] + arch[1])))
-        global_step += 1
 
     return OIS.avg, objs.avg, global_step
 
 
 def child_valid(valid_queue, model, arch_pool, criterion):
     valid_acc_list = []
-    # objs = utils.AvgrageMeter()
-    # OIS = utils.AvgrageMeter()
 
     # set the mode of model to eval
     model.eval()
@@ -210,17 +207,11 @@ def child_valid(valid_queue, model, arch_pool, criterion):
           loss = criterion(img_val_predict, targets.long())
 
           ois_ = evaluate.evaluation_OIS(img_val_predict,targets)
-          # n = inputs.size(0)
-          # objs.update(loss.data, n)
-          # OIS.update(ois_,1)
+
           valid_acc_list.append(ois_)
           if (i+1) % 10 == 0:
               logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
-      
-          # valid_acc_list.append(OIS.avg)
-          # if (i+1) % 10 == 0:
-          #     logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, OIS.avg)
-      
+
     return valid_acc_list
 
 
@@ -239,8 +230,9 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
         objs.reset()
         OIS.reset()
         logging.info('Train and evaluate the {} arch'.format(i+1))
-        model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels, nodes=args.child_nodes,
-                use_aux_head=args.child_use_aux_head, arch=arch, use_softmax_head=False)
+        model = NASUNetBSD(args, nclass=args.num_class, depth=args.child_layers, channels=args.child_channels,
+                           nodes=args.child_nodes,use_aux_head=args.child_use_aux_head, arch=arch,
+                           use_softmax_head=False,keep_prob=0.6,drop_path_keep_prob=0.8,steps=args.steps)
         model = model.cuda()
         model.train()
         optimizer = torch.optim.SGD(
@@ -392,15 +384,15 @@ def main():
     else:
         args.num_class = 10
     
-    if args.search_space == 'with_mor_ops':
-        OPERATIONS = OPERATIONS_search_small
-    elif args.search_space == 'without_mor_ops':
-        OPERATIONS = OPERATIONS_search_without_mor_ops
+    if args.search_space == 'small_with_mor':
+        OPERATIONS = OPERATIONS_search_with_mor
+    elif args.search_space == 'small_without_mor':
+        OPERATIONS = OPERATIONS_search_without_mor
         
     args.child_num_ops = len(OPERATIONS)
     args.controller_encoder_vocab_size = 1 + ( args.child_nodes + 2 - 1 ) + args.child_num_ops
     args.controller_decoder_vocab_size = args.controller_encoder_vocab_size
-    args.steps = int(np.ceil(2000 / args.child_batch_size)) * args.child_epochs#45000
+    args.steps = int(np.ceil(4000 / args.child_batch_size)) * args.child_epochs
 
     logging.info("args = %s", args)
 
@@ -456,8 +448,9 @@ def main():
 
         child_arch_pool_prob = []
         for arch in child_arch_pool:
-            tmp_model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels, nodes=args.child_nodes,
-                use_aux_head=args.child_use_aux_head, arch=arch)
+            tmp_model = NASUNetBSD(args, nclass=args.num_class, depth=args.child_layers, channels=args.child_channels,
+                                   nodes=args.child_nodes,use_aux_head=args.child_use_aux_head, arch=arch,
+                                   use_softmax_head=False,keep_prob=0.6,drop_path_keep_prob=0.8,steps=args.steps)
             child_arch_pool_prob.append(utils.count_parameters_in_MB(tmp_model))
             del tmp_model
         
@@ -468,7 +461,8 @@ def main():
             lr = scheduler.get_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
             #Randomly sample an example to train
-            train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool, child_arch_pool_prob, train_criterion)
+            train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool,
+                                                     child_arch_pool_prob, train_criterion)
             logging.info('train_OIS %f', train_acc)
 
         logging.info("Evaluate seed archs")
@@ -543,8 +537,8 @@ def main():
         new_archs = []
         max_step_size = 50
         predict_step_size = 0
-        top30_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:30]))
-        nao_infer_dataset = utils.NAODataset(top30_archs, None, False)
+        top50_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:50]))
+        nao_infer_dataset = utils.NAODataset(top50_archs, None, False)
         nao_infer_queue = torch.utils.data.DataLoader(
             nao_infer_dataset, batch_size=len(nao_infer_dataset), shuffle=False, pin_memory=True)
         while len(new_archs) < args.controller_new_arch:
@@ -553,10 +547,7 @@ def main():
             new_arch = nao_infer(nao_infer_queue, nao, predict_step_size, direction='+')
             for arch in new_arch:
                 if arch not in encoder_input and arch not in new_archs:
-                  if(utils.determine_arch_valid(arch,search_space=args.search_space)):
                     new_archs.append(arch)
-                  else:
-                    continue
                 if len(new_archs) >= args.controller_new_arch:
                     break
             logging.info('%d new archs generated now', len(new_archs))
@@ -570,7 +561,6 @@ def main():
     logging.info('Reranking top 5 architectures')
     # reranking top 5
     top_archs = arch_pool[:5]
-    print(top_archs)
     top_archs_perf = train_and_evaluate_top_on_BSD500(top_archs, train_queue, valid_queue)
     top_archs_sorted_indices = np.argsort(top_archs_perf)[::-1]
     top_archs = [top_archs[i] for i in top_archs_sorted_indices]

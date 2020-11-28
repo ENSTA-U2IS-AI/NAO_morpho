@@ -242,7 +242,7 @@ class NASUNetSegmentationWS(nn.Module):
             if w.data.dim() >= 2:
                 nn.init.kaiming_normal_(w.data)
 
-    def forward(self, input, arch, bn_train=False):
+    def forward(self, input, arch, step=None, bn_train=False):
 
         _,_,h,w = input.size()
 
@@ -253,9 +253,9 @@ class NASUNetSegmentationWS(nn.Module):
 
         for i, cell in enumerate(self.cells):
             if i in self.down_layer:
-                s0,s1=s1,cell(s0,s1,DownCell_arch)
+                s0,s1=s1,cell(s0,s1,DownCell_arch,step,bn_train=bn_train)
             elif i in self.up_layer:
-                s0,s1=s1,cell(s0,s1,UpCell_arch)
+                s0,s1=s1,cell(s0,s1,UpCell_arch,step,bn_train=bn_train)
 
         # exit()
         if self.use_aux_head:
