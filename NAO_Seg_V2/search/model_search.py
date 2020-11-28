@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ops.operations import OPERATIONS_search_with_mor,OPERATIONS_search_without_mor, MaybeCalibrateSize, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout,OPERATIONS_search_without_mor_ops
+from ops.operations import OPERATIONS_search_with_mor,OPERATIONS_search_without_mor, MaybeCalibrateSize, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout
 from utils.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 # customise the cell for segmentation
 class Node(nn.Module):
@@ -127,6 +127,7 @@ class Cell_down(nn.Module):
             states[1] = self.fac_2(states[1])
         out = torch.cat([states[i] for i in concat], dim=1)
         out = self.final_combine_conv(out, concat, bn_train=bn_train)
+        print(out.size())
         return out
 
 
@@ -180,6 +181,7 @@ class Cell_up(nn.Module):
         out = torch.cat([states[i] for i in concat], dim=1)
         out = self.final_combine_conv(out, concat, bn_train=bn_train)
         out = F.interpolate(out, scale_factor=2, mode='bilinear', align_corners=True)
+        print(out.size())
         return out
 
 
@@ -220,7 +222,7 @@ class NASUNetSegmentationWS(nn.Module):
             outs =[outs[-1],cell.out_shape]
         # this is the right part of U-Net (decoder) up sampling -- learn the down cell
         for _,i in enumerate(self.up_layer):
-            channels /=2
+            channels = channels//2
             cell = Cell_up(self.search_space, outs, self.nodes, channels, i, self.total_layers, self.steps,
                            self.drop_path_keep_prob)
             self.cells.append(cell)
@@ -247,6 +249,7 @@ class NASUNetSegmentationWS(nn.Module):
         _,_,h,w = input.size()
 
         s0= s1 = self.stem0(input)
+        print(s0.size())
         cells_recorder = []
 
         DownCell_arch,UpCell_arch=arch

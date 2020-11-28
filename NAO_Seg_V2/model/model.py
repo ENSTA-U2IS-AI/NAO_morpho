@@ -1,5 +1,5 @@
 import torch.nn as nn
-from ops.operations import OPERATIONS_with_mor,OPERATIONS_without_mor, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout, OPERATIONS_without_mor_ops
+from ops.operations import OPERATIONS_with_mor,OPERATIONS_without_mor, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout
 import torch
 import torch.nn.functional as F
 
@@ -202,17 +202,19 @@ class NASUNetBSD(nn.Module):
         outs = [[416, 416, channels], [416, 416, channels]]
         channels = self.channels
 
+        self.down_layer = [i for i in range(self.depth)]
+        self.up_layer = [i for i in range(self.depth, self.depth * 2)]
         # this is the left part of U-Net (encoder) down sampling -- learn the down cell
         for _, i in enumerate(self.down_layer):
             channels *= 2
-            cell = Cell_down(self.search_space, self.Cell_down_arch, outs, channels, i, self.layers+2, self.steps,
+            cell = Cell_down(self.search_space, self.Cell_down_arch, outs, channels, i, self.depth*2, self.steps,
                              self.drop_path_keep_prob)
             self.cells.append(cell)
             outs = [outs[-1], cell.out_shape]
         # this is the right part of U-Net (decoder) up sampling -- learn the down cell
         for _, i in enumerate(self.up_layer):
-            channels /= 2
-            cell = Cell_up(self.search_space, self.Cell_up_arch, outs, channels, i, self.layers+2, self.steps,
+            channels =channels//2
+            cell = Cell_up(self.search_space, self.Cell_up_arch, outs, channels, i, self.depth*2, self.steps,
                            self.drop_path_keep_prob)
             self.cells.append(cell)
             outs = [outs[-1], cell.out_shape]

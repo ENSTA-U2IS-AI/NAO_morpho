@@ -421,7 +421,7 @@ class MaybeCalibrateSize(nn.Module):
                 self.relu = nn.ReLU(inplace=INPLACE)
                 self.preprocess_x = FactorizedReduce(c[0], channels, [hw[0], hw[0], c[0]], affine)
                 x_out_shape = [hw[1], hw[1], channels]
-            elif(hw[0]*2==hw[1]):
+            elif(hw[0]==hw[1]//2):
                 self.relu = nn.ReLU(inplace=INPLACE)
                 self.preprocess_x = FactorizedUpSampling(c[0], channels, [hw[0], hw[0], c[0]], affine)
                 x_out_shape = [hw[1], hw[1], channels]
@@ -959,8 +959,7 @@ OPERATIONS_with_mor = {
     1: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 5, stride, 2, shape, affine=affine),
     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
     3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1),
-    4: lambda c_in, c_out, stride, shape, affine: Identity() if stride == 1 else FactorizedReduce(c_in, c_out, shape,
-                                                                                                  affine=affine),
+    4: lambda c_in, c_out, stride, shape, affine: Identity(c_in,c_out) if stride == 1 else FactorizedReduce(c_in, c_out, shape,affine=affine),
     5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_dilation_WS(c_in, c_out, 3, 3, stride),  # dil_shuf_3x3
 }
 
@@ -977,7 +976,7 @@ OPERATIONS_without_mor = {
     1: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 5, stride, 2, shape, affine=affine),
     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
     3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1),
-    4: lambda c_in, c_out, stride, shape, affine: Identity() if stride == 1 else FactorizedReduce(c_in, c_out, shape,
+    4: lambda c_in, c_out, stride, shape, affine: Identity(c_in,c_out) if stride == 1 else FactorizedReduce(c_in, c_out, shape,
                                                                                                   affine=affine)
 }
 

@@ -29,8 +29,8 @@ parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='small_with_mor', choices=['small_with_mor', 'small_without_mor'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--child_batch_size', type=int, default=8)
-parser.add_argument('--child_eval_batch_size', type=int, default=4)
+parser.add_argument('--child_batch_size', type=int, default=4)
+parser.add_argument('--child_eval_batch_size', type=int, default=2)
 parser.add_argument('--child_epochs', type=int, default=50)
 parser.add_argument('--child_layers', type=int, default=4)
 parser.add_argument('--child_nodes', type=int, default=5)
@@ -440,7 +440,7 @@ def main():
     
     if child_arch_pool is None:
         logging.info('Architecture pool is not provided, randomly generating now')
-        child_arch_pool = utils.generate_arch(args.controller_seed_arch, args.child_nodes, args.child_num_ops, args.search_space)  # [[[downc],[upc]]]
+        child_arch_pool = utils.generate_arch(args.controller_seed_arch, args.child_nodes, args.child_num_ops)  # [[[downc],[upc]]]
     arch_pool = []
     arch_pool_valid_acc = []
     for i in range(4):
