@@ -771,7 +771,7 @@ OPERATIONS_search_small = {
     5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation(n, c_in, c_out, 3, 3, stride), #dil_shuf_3x3
 }
 
-OPERATIONS_small_WS_GN = {
+OPERATIONS_small_Sep = {
     0: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 3, stride, 1, shape, affine=affine),
     1: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 5, stride, 2, shape, affine=affine),
     2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
@@ -781,7 +781,7 @@ OPERATIONS_small_WS_GN = {
 }
 
 
-OPERATIONS_search_small_WS_GN = {
+OPERATIONS_search_small_Sep = {
     0: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 3, 1, affine=affine),
     1: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 5, 2, affine=affine),
     2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),

@@ -15,5 +15,5 @@ python train_cifar.py \
   --output_dir=$OUTPUT_DIR \
   --arch="$fixed_arc" \
   --use_aux_head \
-  --search_space small_with_WS_GN\
+  --search_space small_with_Sep\
   --cutout_size=16 | tee -a $OUTPUT_DIR/train.log
