@@ -458,7 +458,7 @@ class Depthwise_separable_conv(nn.Module):
         super(Depthwise_separable_conv, self).__init__()
         self.depthwise = nn.Conv2d(cin, cin, kernel_size=kernel_size, padding=1, groups=cin,bias=False)
         self.pointwise = nn.Conv2d(cin, cout, kernel_size=1,bias=False)
-        self.bn = nn.BatchNorm2d(cout, affine=affine)
+        self.bn = nn.BatchNorm2d(cout, affine=True)
         self.relu= nn.ReLU(inplace=INPLACE)
 
     def forward(self, x):
