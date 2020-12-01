@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ops.operations import OPERATIONS_search_small, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout,OPERATIONS_search_without_mor_ops
+from ops.operations import OPERATIONS_search_with_mor, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout,OPERATIONS_search_without_mor_ops
 
 # customise the cell for segmentation
 class NodeSegmentation(nn.Module):
@@ -17,11 +17,10 @@ class NodeSegmentation(nn.Module):
         self.initial_id_for_up_or_down = initial_id_for_up_or_down
 
         if search_space == 'with_mor_ops':
-            OPERATIONS = OPERATIONS_search_small
+            OPERATIONS = OPERATIONS_search_with_mor
         elif search_space == 'without_mor_ops':
             OPERATIONS = OPERATIONS_search_without_mor_ops
-        else:
-            OPERATIONS = OPERATIONS_search_small
+
         if search_space == 'with_mor_ops':
           for i, item in OPERATIONS.items():
             if 5<=i<9:
@@ -56,10 +55,6 @@ class NodeSegmentation(nn.Module):
         input_to_intermediate_node+=[x]
         input_to_intermediate_node+=[y]
         out = sum(consistent_dim(input_to_intermediate_node))
-        # print('\n')
-        # print(x.size())
-        # print(y.size())
-        # print(out.size())
         return out
       
 from torch.nn.functional import interpolate
@@ -125,7 +120,7 @@ class CellSegmentation(nn.Module):
 
 class NASUNetSegmentationWS(nn.Module):
     #args, classes, layers, nodes, channels, keep_prob, drop_path_keep_prob, use_aux_head, steps
-    def __init__(self, args, depth=4, classes=2, nodes=5, input_chs=3, chs=16, keep_prob=0.9, double_down_channel=False, use_softmax_head=False,use_aux_head=False):
+    def __init__(self, args, depth=4, classes=2, nodes=5, input_chs=3, chs=16, keep_prob=1, double_down_channel=False, use_softmax_head=False,use_aux_head=False):
         super(NASUNetSegmentationWS, self).__init__()
         self.args = args
         self.search_space = args.search_space
@@ -140,17 +135,7 @@ class NASUNetSegmentationWS(nn.Module):
 
         ch_prev_2, ch_prev, ch_curr = self.nodes * chs, self.nodes * chs, chs #chs = channels
 
-        # s0 = 1×1 convolution [4c,h,w]
-        # self._stem0 = nn.Sequential(
-        #     nn.Conv2d(input_chs, ch_prev_2, kernel_size=1, bias=False),
-        #     nn.BatchNorm2d(ch_prev_2)
-        # )
         self._stem0 = ConvNet(input_chs, ch_prev_2, kernel_size=1, op_type='pre_ops')
-        # s1 = 3×3 convolution [4c,0.5h,0.5w]
-        # self._stem1 = nn.Sequential(
-        #     nn.Conv2d(input_chs, ch_prev, kernel_size=3, stride=2, padding=1, bias=False),
-        #     nn.BatchNorm2d(ch_prev)
-        # )
         self._stem1 = ConvNet(input_chs,ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
@@ -162,7 +147,7 @@ class NASUNetSegmentationWS(nn.Module):
         # this is the left part of U-Net (encoder) down sampling
         for i in range(depth):
             ch_curr = 2*ch_curr if self.double_down_channel else ch_curr
-            cell_down = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,self.keep_prob,type='down')
+            cell_down = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,type='down')
             self.cells_down +=[cell_down]
             ch_prev_2,ch_prev = ch_prev,self.multiplier*ch_curr
             path_recorder +=[ch_prev]
@@ -170,7 +155,7 @@ class NASUNetSegmentationWS(nn.Module):
         # this is the right part of U-Net (decoder) up sampling
         for i in range(depth+1):
             ch_prev_2 = path_recorder[-(i+2)]
-            cell_up = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,self.keep_prob,type='up')
+            cell_up = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,type='up')
             self.cells_up += [cell_up]
             ch_prev = self.multiplier*ch_curr
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
@@ -180,7 +165,7 @@ class NASUNetSegmentationWS(nn.Module):
         if use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d)
         else:
-          self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1, op_type='SC')
+          self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=1-self.keep_prob, op_type='SC')
 
         if use_softmax_head:
             self.softmax = nn.Softmax(dim=1)

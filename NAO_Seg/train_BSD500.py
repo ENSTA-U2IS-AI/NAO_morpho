@@ -10,7 +10,6 @@ import torch.utils
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
 from model.model import NASUNetBSD
-from model.DexiNed import DexiNet
 from search.model_search import NASUNetSegmentationWS
 import torchvision.transforms as transforms
 import os
@@ -35,11 +34,10 @@ parser.add_argument('--cutout_size', type=int, default=None)
 parser.add_argument('--grad_bound', type=float, default=5.0)
 parser.add_argument('--lr_max', type=float, default=1e-1)
 parser.add_argument('--lr_min', type=float, default=1e-5)
-parser.add_argument('--keep_prob', type=float, default=0.6)
-parser.add_argument('--drop_path_keep_prob', type=float, default=0.8)
+parser.add_argument('--keep_prob', type=float, default=1)
 parser.add_argument('--l2_reg', type=float, default=5e-4)
 parser.add_argument('--arch', type=str, default=None)
-parser.add_argument('--use_aux_head', action='store_true', default=True)
+parser.add_argument('--use_aux_head', action='store_true', default=False)
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=2)
 args = parser.parse_args()
@@ -96,21 +94,20 @@ def valid(valid_queue, model, criterion):
         for step, (input, target) in enumerate(valid_queue):
             input = input.cuda()
             target = target.cuda()
-           
-            img_predict= model(input)
+
+            img_predict = model(input)
             loss = criterion(img_predict, target.long())
-            
+
             ois = evaluate.evaluation_OIS(img_predict, target)
             ods = evaluate.evaluation_ODS(img_predict, target)
 
             n = input.size(0)
             objs.update(loss.data, n)
             OIS.update(ois, n)
-            ODS.update(ods,n)
+            ODS.update(ods, n)
 
-        
-            if (step+1) % 25 == 0:
-                logging.info('valid %03d loss %e OIS %f ODS %f ', step+1, objs.avg, OIS.avg, ODS.avg)
+            if (step + 1) % 25 == 0:
+                logging.info('valid %03d loss %e OIS %f ODS %f ', step + 1, objs.avg, OIS.avg, ODS.avg)
 
     return OIS.avg, ODS.avg, objs.avg
 
@@ -118,6 +115,7 @@ def valid(valid_queue, model, criterion):
 def test(test_queue, model, criterion):
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
+    ODS = utils.AvgrageMeter()
 
     # set the mode of model to eval
     model.eval()
@@ -131,14 +129,17 @@ def test(test_queue, model, criterion):
             loss = criterion(img_predict, target.long())
 
             ois = evaluate.evaluation_OIS(img_predict, target)
+            ods = evaluate.evaluation_ODS(img_predict, target)
             evaluate.save_predict_imgs(img_predict,step)
 
             n = input.size(0)
             objs.update(loss.data, n)
             OIS.update(ois, n)
+            ODS.update(ods, n)
 
             if (step + 1) % 20 == 0:
-                logging.info('test  loss %e OIS %f ', objs.avg, OIS.avg)
+                logging.info('test  loss %e OIS %f ODS %f', objs.avg, OIS.avg, ODS.avg)
+
 
 
 def get_builder(dataset):
@@ -166,11 +167,6 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels, nodes=args.nodes,
                        use_aux_head=args.use_aux_head, arch=args.arch, use_softmax_head=False,
                        double_down_channel=False)
-    
-    # # Get computing device
-    # device = torch.device('cpu' if torch.cuda.device_count() == 0
-    #                       else 'cuda')
-    # model = DexiNet().to(device)
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
     if model_state_dict is not None:
@@ -183,10 +179,6 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
 
     train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
     eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065,0.935])).cuda()
-    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
-    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.135,0.865])).cuda()
-    # train_criterion = losses.weighted_cross_entropy_loss
-    # eval_criterion = losses.weighted_cross_entropy_loss
 
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -194,12 +186,10 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
         momentum=0.9,
         weight_decay=args.l2_reg,
     )
-    # if optimizer_state_dict is not None:
-    #     optimizer.load_state_dict(optimizer_state_dict)
-    
+   
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min, epoch)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.2, patience=3)
     return train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler
 
 
@@ -219,14 +209,13 @@ def main():
     loss = []
     accuracy_OIS = []
 
-    args.steps = int(np.ceil(2000 / args.batch_size)) * args.epochs
+    args.steps = int(np.ceil(4000 / args.batch_size)) * args.epochs
     logging.info("Args = %s", args)
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS = utils.load(output_dir)
     build_fn = get_builder(args.dataset)
     train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler = build_fn(model_state_dict, optimizer_state_dict, epoch=epoch-1)
     
-    val_loss = 10
     while epoch < args.epochs:
         # logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
         logging.info('epoch %d lr %e', epoch, optimizer.param_groups[0]['lr'])
@@ -235,13 +224,11 @@ def main():
         valid_OIS, valid_ODS, valid_obj = valid(valid_queue, model, eval_criterion)
         logging.info('valid_OIS %f valid_ODS %f', valid_OIS, valid_ODS)
         epoch += 1
-        scheduler.step(valid_obj)
+        # scheduler.step(valid_obj)
         is_best = False
-        if (valid_OIS>best_OIS) :
-        # if (val_loss > valid_obj) or (valid_OIS>best_OIS) :
-            val_loss = valid_obj
-            best_OIS = valid_OIS
+        if valid_OIS>best_OIS :
             best_ODS = valid_ODS
+            best_OIS = valid_OIS
             is_best = True
         if is_best:
           utils.save(args.output_dir, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best)

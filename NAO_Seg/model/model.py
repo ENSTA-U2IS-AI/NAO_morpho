@@ -1,5 +1,5 @@
 import torch.nn as nn
-from ops.operations import OPERATIONS_small, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout, OPERATIONS_without_mor_ops
+from ops.operations import OPERATIONS_with_mor, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout, OPERATIONS_without_mor_ops
 import torch
 
 # customise the cell for segmentation
@@ -16,11 +16,9 @@ class NodeSegmentation(nn.Module):
         self.transpose = transpose
 
         if search_space == 'with_mor_ops':
-            OPERATIONS = OPERATIONS_small
+            OPERATIONS = OPERATIONS_with_mor
         elif search_space == 'without_mor_ops':
             OPERATIONS = OPERATIONS_without_mor_ops
-        else:
-            OPERATIONS = OPERATIONS_small
 
         if self.transpose==False:
           x_stride = stride if x_id in [0, 1] else 1
@@ -71,10 +69,6 @@ class CellSegmentation(nn.Module):
         self._multiplier = self.nodes
 
         if self.type == 'down':
-        #     self.preprocess0 = nn.Sequential(
-        #     nn.Conv2d(ch_prev_2, channels, kernel_size=1, stride=2, bias=False),
-        #     nn.BatchNorm2d(channels)
-        # )
             self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=2, op_type='pre_ops_cell')
         else:
             self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, op_type='pre_ops_cell')
@@ -125,6 +119,7 @@ class NASUNetBSD(nn.Module):
         self.multiplier = nodes
         self.use_aux_head = use_aux_head
         self.use_softmax_head = use_softmax_head
+        self.dropout_rate=dropout_rate
 
         if isinstance(arch, str):
             arch = list(map(int, arch.strip().split()))
@@ -137,17 +132,8 @@ class NASUNetBSD(nn.Module):
 
         ch_prev_2, ch_prev, ch_curr = self.multiplier * c, self.multiplier * c, c
 
-        # s0 = 1×1 convolution
-        # self._stem0 = nn.Sequential(
-        #     nn.Conv2d(in_channels, ch_prev_2, kernel_size=1, bias=False),
-        #     nn.BatchNorm2d(ch_prev_2)
-        # )
+      
         self._stem0 = ConvNet(in_channels, ch_prev_2, kernel_size=1, op_type='pre_ops')
-        # s1 = 3×3 convolution
-        # self._stem1 = nn.Sequential(
-        #     nn.Conv2d(in_channels, ch_prev, kernel_size=3, stride=2, padding=1, bias=False),
-        #     nn.BatchNorm2d(ch_prev)
-        # )
         self._stem1 = ConvNet(in_channels, ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
@@ -177,7 +163,7 @@ class NASUNetBSD(nn.Module):
         if use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
         else:
-          self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
+          self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=dropout_rate, op_type='SC')
 
         if self.use_softmax_head:
           self.softmax = nn.Softmax(dim=1)
@@ -211,11 +197,6 @@ class NASUNetBSD(nn.Module):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1)
         
-        
-        # if self.use_aux_head:
-        #   x = self.ConvSegmentation(s1)
-        #   x = interpolate(x, (h,w))
-        # else:
         x = self.ConvSegmentation(s1)
           
         if self.use_softmax_head:

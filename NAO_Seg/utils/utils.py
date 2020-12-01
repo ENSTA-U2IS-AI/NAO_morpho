@@ -415,7 +415,42 @@ def save_checkpoint(state, is_best, save):
         best_filename = os.path.join(save, 'model_best.pth.tar')
         shutil.copyfile(filename, best_filename)
       
+"""
+def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True):
+    if hasattr(model, 'module'):
+        model = model.module
+    state_dict = {
+        'args': args,
+        'model': model.state_dict() if model else {},
+        'epoch': epoch,
+        'step': step,
+        'optimizer': optimizer.state_dict(),
+        'best_OIS': best_OIS,
+    }
+    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
+    torch.save(state_dict, filename)
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    shutil.copyfile(filename, newest_filename)
+    if is_best:
+        best_filename = os.path.join(model_path, 'checkpoint_best.pt')
+        shutil.copyfile(filename, best_filename)
+  
 
+def load(model_path):
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    # newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    if not os.path.exists(newest_filename):
+        return None, None, 0, 0, None, 0
+    state_dict = torch.load(newest_filename)
+    args = state_dict['args']
+    model_state_dict = state_dict['model']
+    epoch = state_dict['epoch']
+    step = state_dict['step']
+    optimizer_state_dict = state_dict['optimizer']
+    best_OIS = state_dict.get('best_OIS')
+    print('model loaded!')
+    return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS
+"""
 def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
     if hasattr(model, 'module'):
         model = model.module
@@ -518,22 +553,22 @@ def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
       for i in range(2, num_nodes+2):
         if i==2:
           p1 = np.random.randint(0, i)
-          op1 = np.random.randint(0, 5)
+          op1 = np.random.randint(0, 4)
           p2 = np.random.randint(0, i)
           if p2==p1:
             p2 = 1-p1
-          op2 = np.random.randint(0 ,5)
+          op2 = np.random.randint(0 ,4)
         else:
           p1 = np.random.randint(0, i)
           if 0<=p1<2:
-            op1 = np.random.randint(0, 5)
+            op1 = np.random.randint(0, 4)
           else:
-            op1 = np.random.randint(5, 10)
+            op1 = np.random.randint(4, 8)
           p2 = np.random.randint(0, i)
           if 0<=p2<2:
-            op2 = np.random.randint(0 ,5)
+            op2 = np.random.randint(0 ,4)
           else:
-            op2 = np.random.randint(5 ,10)
+            op2 = np.random.randint(4 ,8)
         arch.extend([p1, op1, p2, op2])
       return arch
     def _get_up_arch():
@@ -542,27 +577,27 @@ def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
         if i==2:
           p1 = np.random.randint(0, i)
           if p1==0:
-            op1 = np.random.randint(5, 10)
+            op1 = np.random.randint(4, 8)
           else:
-            op1 = np.random.randint(10, 12)
+            op1 = np.random.randint(8, 9)
           p2 = np.random.randint(0, i)
           if p2==p1:
             p2 = 1-p1
           if p2==0:
-            op2 = np.random.randint(5 ,10)
+            op2 = np.random.randint(4 ,8)
           else:
-            op2 = np.random.randint(10 ,12)
+            op2 = np.random.randint(8 ,9)
         else:
           p1 = np.random.randint(0, i)
           if p1 == 1:
-            op1 = np.random.randint(10, 12)
+            op1 = np.random.randint(8, 9)
           else:
-            op1 = np.random.randint(5, 10)
+            op1 = np.random.randint(4, 8)
           p2 = np.random.randint(0, i)
           if p2 == 1:
-            op2 = np.random.randint(10 ,12)
+            op2 = np.random.randint(8 ,9)
           else:
-            op2 = np.random.randint(5 ,10)
+            op2 = np.random.randint(4 ,8)
         arch.extend([p1, op1, p2, op2])
       return arch
 
