@@ -749,7 +749,8 @@ class ConvNet(nn.Module):
           x = self.norm(x)
           x = self.activate(x)
         elif self.op_type=='SC':
-          x = self.dropout(x)
+          if self.dropout_rate > 0:
+            x = self.dropout(x)
           x = self.conv(x)
         elif self.op_type=='pre_ops':
           x = self.conv(x)

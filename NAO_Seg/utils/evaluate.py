@@ -113,7 +113,7 @@ def evaluation_ODS(img_predict,img_GT):
     img_predict = img_predict[:, 1]
 
     ## we get an array with floats
-    thresholds = np.linspace(0, 1, 20)
+    thresholds = np.linspace(0, 1, 100)
 
     f1_score = 0.
     img_predict = img_predict.cpu().detach().numpy().astype('float32')

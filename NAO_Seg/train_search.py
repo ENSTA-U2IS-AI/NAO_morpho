@@ -42,7 +42,7 @@ parser.add_argument('--child_lr_min', type=float, default=0.001)#1e-4
 parser.add_argument('--child_keep_prob', type=float, default=1.0)
 parser.add_argument('--child_drop_path_keep_prob', type=float, default=0.9)
 parser.add_argument('--child_l2_reg', type=float, default=5e-4)
-parser.add_argument('--child_use_aux_head', action='store_true', default=True)
+parser.add_argument('--child_use_aux_head', action='store_true', default=False)
 parser.add_argument('--child_arch_pool', type=str, default=None)
 parser.add_argument('--child_lr', type=float, default=0.1)
 
