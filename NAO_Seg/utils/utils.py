@@ -754,6 +754,14 @@ def generate_eval_points(eval_epochs, stand_alone_epoch, total_epochs):
 
 def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
     n = len(seq)
+    if search_space=='with_mor_ops':
+        down_ops=[0,1,2,3]
+        normal_ops=[4,5,6,7]
+        up_ops=[8]
+    else:
+        down_ops=[0,1,2,3]
+        normal_ops = [4, 5, 6]
+        up_ops = [7,8]
 
     def down_cell(cell_seq):
         for i in range(nodes):
@@ -762,26 +770,26 @@ def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
             p2 = int(cell_seq[4 * i + 2]) - 1
             op2 = int(cell_seq[4 * i + 3]) - 7
             if i ==0:
-                if (p1<0 or p1>1):
+                if p1 not in [0,1]:
                     return False
-                if (p2<0 or p2>1):
+                if p2 not in [0,1]:
                     return False
-                if (op1>=5) or (op2>=5):
+                if (op1 not in  down_ops) or (op2 not in down_ops):
                     return False
                 if p1 == p2:
                     return False
             else:
-                if 0<=p1<2:
-                    if op1>=5:
+                if p1 in [0,1]:
+                    if (op1 not in  down_ops):
                         return False
                 else:
-                    if op1>8 or op1<5:
+                    if (op1 not in  normal_ops):
                         return False
-                if 0<=p2<2:
-                    if op2>=5:
+                if p2 in [0,1]:
+                    if (op2 not in down_ops):
                         return False
                 else:
-                    if op2>8 or op2<5:
+                    if (op2 not in  normal_ops):
                         return False
 
         return True
@@ -798,123 +806,39 @@ def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
                 elif p2==0 and p1!=1:
                     return False
                 elif p1==0 and p2==1:
-                    if op1 in [0,1,2,3,4,9,10]:
+                    if op1 not in normal_ops:
                         return False
-                    if op2 in [i for i in range(0,9)]:
+                    if op2 not in up_ops:
                         return False
                 elif p1==1 and p2==0:
-                    if op2 in [0, 1, 2, 3, 4, 9, 10]:
+                    if op2 not in normal_ops:
                         return False
-                    if op1 in [i for i in range(0, 9)]:
+                    if op1 not in up_ops:
                         return False
                 else:
                     return False
             else:
                 if p1==1:
-                    if op1 in [i for i in range(0, 9)]:
+                    if op1 not in up_ops:
                         return False
                 else:
-                    if op1 in [9,10]:
-                        return False
-                    if op1 in [0,1,2,3,4]:
+                    if op1 not in normal_ops:
                         return False
                 if p2==1:
-                    if op2 in [i for i in range(0, 9)]:
+                    if op2 not in up_ops:
                         return False
                 else:
-                    if op2 in [9,10]:
-                        return False
-                    if op2 in [0,1,2,3,4]:
+                    if op2 not in normal_ops:
                         return False
         return True
-    #add the restrictions for the search space without mor ops
 
-    def down_cell_without_mor_ops(cell_seq):
-        for i in range(nodes):
-            p1 = int(cell_seq[4 * i]) - 1
-            op1 = int(cell_seq[4 * i + 1]) - 7
-            p2 = int(cell_seq[4 * i + 2]) - 1
-            op2 = int(cell_seq[4 * i + 3]) - 7
-            if i ==0:
-                if (p1<0 or p1>1):
-                    return False
-                if (p2<0 or p2>1):
-                    return False
-                if (op1>=4) or (op2>=4):
-                    return False
-                if p1 == p2:
-                    return False
-            else:
-                if 0<=p1<2:
-                    if op1>=4:
-                        return False
-                else:
-                    if op1>6 or op1<4:
-                        return False
-                if 0<=p2<2:
-                    if op2>=4:
-                        return False
-                else:
-                    if op2>6 or op2<4:
-                        return False
-
-        return True
-
-    def up_cell_without_mor_ops(cell_seq):
-        for i in range(nodes):
-            p1 = int(cell_seq[4 * i]) - 1
-            op1 = int(cell_seq[4 * i + 1]) - 7
-            p2 = int(cell_seq[4 * i + 2]) - 1
-            op2 = int(cell_seq[4 * i + 3]) - 7
-            if i ==0:
-                if p1==0 and p2!=1:
-                    return False
-                elif p2==0 and p1!=1:
-                    return False
-                elif p1==0 and p2==1:
-                    if op1 in [0,1,2,3,7,8]:
-                        return False
-                    if op2 in [i for i in range(0,7)]:
-                        return False
-                elif p1==1 and p2==0:
-                    if op2 in [0, 1, 2, 3, 7, 8]:
-                        return False
-                    if op1 in [i for i in range(0, 7)]:
-                        return False
-                else:
-                    return False
-            else:
-                if p1==1:
-                    if op1 in [i for i in range(0, 7)]:
-                        return False
-                else:
-                    if op1 in [7,8]:
-                        return False
-                    if op1 in [0,1,2,3]:
-                        return False
-                if p2==1:
-                    if op2 in [i for i in range(0, 7)]:
-                        return False
-                else:
-                    if op2 in [7,8]:
-                        return False
-                    if op2 in [0,1,2,3]:
-                        return False
-        return True
     down_seq = seq[:n // 2]
     up_seq = seq[n // 2:]
     print(down_seq)
     print(up_seq)
-    if search_space=='with_mor_ops':
-      print(1)
-      down_arch = down_cell(down_seq)
-      up_arch = up_cell(up_seq)
-      
-    else:
-      print(2)
-      down_arch = down_cell_without_mor_ops(down_seq)
-      up_arch = up_cell_without_mor_ops(up_seq)
-      
+
+    down_arch = down_cell(down_seq)
+    up_arch = up_cell(up_seq)
 
     if down_arch and up_arch:
         print('the new generated arch is valid')
