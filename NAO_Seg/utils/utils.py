@@ -415,7 +415,7 @@ def save_checkpoint(state, is_best, save):
         best_filename = os.path.join(save, 'model_best.pth.tar')
         shutil.copyfile(filename, best_filename)
       
-"""
+
 def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True):
     if hasattr(model, 'module'):
         model = model.module
@@ -450,43 +450,43 @@ def load(model_path):
     best_OIS = state_dict.get('best_OIS')
     print('model loaded!')
     return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS
-"""
-def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
-    if hasattr(model, 'module'):
-        model = model.module
-    state_dict = {
-        'args': args,
-        'model': model.state_dict() if model else {},
-        'epoch': epoch,
-        'step': step,
-        'optimizer': optimizer.state_dict(),
-        'best_OIS': best_OIS,
-        'best_ODS': best_ODS,
-    }
-    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
-    torch.save(state_dict, filename)
-    newest_filename = os.path.join(model_path, 'checkpoint.pt')
-    shutil.copyfile(filename, newest_filename)
-    if is_best:
-        best_filename = os.path.join(model_path, 'checkpoint_best.pt')
-        shutil.copyfile(filename, best_filename)
-  
 
-def load(model_path):
-    newest_filename = os.path.join(model_path, 'checkpoint.pt')
-    # newest_filename = os.path.join(model_path, 'checkpoint.pt')
-    if not os.path.exists(newest_filename):
-        return None, None, 0, 0, None, 0, 0
-    state_dict = torch.load(newest_filename)
-    args = state_dict['args']
-    model_state_dict = state_dict['model']
-    epoch = state_dict['epoch']
-    step = state_dict['step']
-    optimizer_state_dict = state_dict['optimizer']
-    best_OIS = state_dict.get('best_OIS')
-    best_ODS = state_dict.get('best_ODS')
-    print('model loaded!')
-    return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS
+# def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
+#     if hasattr(model, 'module'):
+#         model = model.module
+#     state_dict = {
+#         'args': args,
+#         'model': model.state_dict() if model else {},
+#         'epoch': epoch,
+#         'step': step,
+#         'optimizer': optimizer.state_dict(),
+#         'best_OIS': best_OIS,
+#         'best_ODS': best_ODS,
+#     }
+#     filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
+#     torch.save(state_dict, filename)
+#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
+#     shutil.copyfile(filename, newest_filename)
+#     if is_best:
+#         best_filename = os.path.join(model_path, 'checkpoint_best.pt')
+#         shutil.copyfile(filename, best_filename)
+#
+#
+# def load(model_path):
+#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
+#     # newest_filename = os.path.join(model_path, 'checkpoint.pt')
+#     if not os.path.exists(newest_filename):
+#         return None, None, 0, 0, None, 0, 0
+#     state_dict = torch.load(newest_filename)
+#     args = state_dict['args']
+#     model_state_dict = state_dict['model']
+#     epoch = state_dict['epoch']
+#     step = state_dict['step']
+#     optimizer_state_dict = state_dict['optimizer']
+#     best_OIS = state_dict.get('best_OIS')
+#     best_ODS = state_dict.get('best_ODS')
+#     print('model loaded!')
+#     return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS
 
 
 # def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True):

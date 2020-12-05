@@ -108,7 +108,7 @@ class NASUNetBSD(nn.Module):
     """construct the Ulike-net according to these searched cells"""
 
     def __init__(self, args, nclass=1, in_channels=3, backbone=None, aux=False,
-                 c=8, depth=4, keep_prob=1., nodes=5, arch=None,
+                 c=8, depth=4, keep_prob=1, nodes=5, arch=None,
                  double_down_channel=False, use_aux_head=False,use_softmax_head=False):
         super(NASUNetBSD, self).__init__()
         self.args = args
@@ -161,9 +161,9 @@ class NASUNetBSD(nn.Module):
         # self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
 
         if use_aux_head:
-          self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d)
+          self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d,dropout_rate=1-self.keep_prob,)
         else:
-          self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=1-keep_prob, op_type='SC')
+          self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=1-self.keep_prob, op_type='SC')
 
         if self.use_softmax_head:
           self.softmax = nn.Softmax(dim=1)

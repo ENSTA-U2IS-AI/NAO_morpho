@@ -31,14 +31,14 @@ parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=2)
 parser.add_argument('--child_eval_batch_size', type=int, default=10)
-parser.add_argument('--child_epochs', type=int, default=50)#100
+parser.add_argument('--child_epochs', type=int, default=5)#50
 parser.add_argument('--child_layers', type=int, default=4)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=16)
 parser.add_argument('--child_cutout_size', type=int, default=None)
 parser.add_argument('--child_grad_bound', type=float, default=5.0)
-parser.add_argument('--child_lr_max', type=float, default=0.025)#1e-2
-parser.add_argument('--child_lr_min', type=float, default=0.001)#1e-4
+parser.add_argument('--child_lr_max', type=float, default=0.025)
+parser.add_argument('--child_lr_min', type=float, default=0.001)
 parser.add_argument('--child_keep_prob', type=float, default=1.0)
 parser.add_argument('--child_drop_path_keep_prob', type=float, default=0.9)
 parser.add_argument('--child_l2_reg', type=float, default=5e-4)
