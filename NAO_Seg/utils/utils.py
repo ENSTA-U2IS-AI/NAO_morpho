@@ -451,6 +451,38 @@ def load(model_path):
     print('model loaded!')
     return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS
 
+
+def save_for_deeplab(model_path, args, model, iter, optimizer, is_best=True):
+    if hasattr(model, 'module'):
+        model = model.module
+    state_dict = {
+        'args': args,
+        'model': model.state_dict() if model else {},
+        'iter': iter,
+        'optimizer': optimizer.state_dict(),
+    }
+    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(iter))
+    torch.save(state_dict, filename)
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    shutil.copyfile(filename, newest_filename)
+    if is_best:
+        best_filename = os.path.join(model_path, 'checkpoint_best.pt')
+        shutil.copyfile(filename, best_filename)
+
+
+def load_for_deeplab(model_path):
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    # newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    if not os.path.exists(newest_filename):
+        return None, None, 0,  None
+    state_dict = torch.load(newest_filename)
+    args = state_dict['args']
+    model_state_dict = state_dict['model']
+    iter = state_dict['iter']
+    optimizer_state_dict = state_dict['optimizer']
+    print('model loaded!')
+    return args, model_state_dict, iter, optimizer_state_dict
+
 # def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
 #     if hasattr(model, 'module'):
 #         model = model.module

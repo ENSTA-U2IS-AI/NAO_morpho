@@ -39,44 +39,14 @@ parser.add_argument('--use_aux_head', action='store_true', default=True)
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=2)
 parser.add_argument('--save', type=bool, default=True)
+parser.add_argument('--iterations', type=int, default=10)
+parser.add_argument('--val_per_iter', type=int, default=2)
 args = parser.parse_args()
 
 utils.create_exp_dir(args.output_dir, scripts_to_save=glob.glob('*.py'))
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format=log_format, datefmt='%m/%d %I:%M:%S %p')
-
-
-def train(train_queue, model, optimizer, global_step):
-    objs = utils.AvgrageMeter()
-    OIS = utils.AvgrageMeter()
-
-    # set the mode of model to train
-    model.train()
-
-    for step, (input, target) in enumerate(train_queue):
-        input = input.cuda().requires_grad_()
-        target = target.cuda()
-
-        img_predict = model(input)
-        loss = cross_entropy_loss(img_predict, target)
-
-        optimizer.zero_grad()
-        global_step += 1
-        loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
-        optimizer.step()
-
-        ois = evaluate.evaluation_OIS(img_predict, target)
-        ods = evaluate.evaluation_ODS(img_predict, target)
-        n = input.size(0)
-        objs.update(loss.data, n)
-        OIS.update(ois, n)
-
-        if (step + 1) % 25 == 0:
-            logging.info('train %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
-
-    return OIS.avg, objs.avg, global_step
 
 
 def valid(valid_queue, model):
@@ -254,21 +224,26 @@ def get_builder(dataset):
 def cross_entropy_loss(prediction, label):
     label = label.long()
     mask = label.float()
-    num_positive = torch.sum((mask==1).float()).float()
-    num_negative = torch.sum((mask==0).float()).float()
+
+    prediction = torch.nn.functional.softmax(prediction, 1)
+    ## with channel=1 we get the img[B,H,W]
+    prediction = prediction[:, 1, :, :].unsqueeze(1)
+
+    num_positive = torch.sum((mask == 1).float()).float()
+    num_negative = torch.sum((mask == 0).float()).float()
 
     mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
     mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
 
     cost = torch.nn.functional.binary_cross_entropy(
-            prediction.float(),label.float(), weight=mask, reduce=False)
+        prediction.float(), label.float(), weight=mask, reduce=False)
     return torch.sum(cost) / (num_negative + num_positive)
 
 def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
-    epoch = kwargs.pop('epoch')
-    root ="./data/HED-BSDS"
-    train_data = dataloader_BSD_aux.BSD_loader(root=root,split='train')
-    valid_data = dataloader_BSD_aux.BSD_loader(root=root,split='val')
+    i_iter = kwargs.pop('i_iter')
+    root = "./data/HED-BSDS"
+    train_data = dataloader_BSD_aux.BSD_loader(root=root, split='train')
+    valid_data = dataloader_BSD_aux.BSD_loader(root=root, split='val')
 
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batch_size, pin_memory=True, num_workers=16, shuffle=True)
@@ -289,21 +264,22 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
 
     # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
     # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
-    # train_criterion = cross_entropy_loss().cuda()
-    # eval_criterion = cross_entropy_loss().cuda()
+
 
     optimizer = torch.optim.SGD(
+        # [{'params': model.parameters(), 'initial_lr': args.lr_max}]
         model.parameters(),
-        args.lr_max,
+        lr=args.lr_max,
         momentum=0.9,
         weight_decay=args.l2_reg,
     )
     if optimizer_state_dict is not None:
         optimizer.load_state_dict(optimizer_state_dict)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min, epoch)
+
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.iterations), args.lr_min)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.iterations), args.lr_min, iter)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.5, patience=3)
-    return train_queue, valid_queue, model,optimizer, scheduler
+    return train_queue, valid_queue, model, optimizer, scheduler
 
 
 def main():
@@ -321,41 +297,66 @@ def main():
     args.steps = int(np.ceil(4000 / args.batch_size)) * args.epochs
     logging.info("Args = %s", args)
     output_dir = './exp/NAONet_BSD_500/'
-    _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS = utils.load(output_dir)
+    _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_for_deeplab(output_dir)
     build_fn = get_builder(args.dataset)
     train_queue, valid_queue, model, optimizer, scheduler = build_fn(model_state_dict,
-                                                                  optimizer_state_dict,
-                                                                  epoch=epoch - 1)
+                                                                     optimizer_state_dict,
+                                                                     i_iter=start_iteration-1)
 
-    filename = "./curve/accuracy_loss_validation.txt"  # --for draw save the loss and ods of valid set
+    filename = "./curve/loss.txt"  # --for draw save the loss and ods of valid set
     if not os.path.exists(os.path.dirname(filename)):
         try:
             os.makedirs(os.path.dirname(filename))
         except:
             logging.info('creat the curve folder failed.')
-    valid_pre_ODS = 0
-    while epoch < args.epochs:
-        # logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
-        logging.info('epoch %d lr %e', epoch, optimizer.param_groups[0]['lr'])
-        train_OIS, train_obj, step = train(train_queue, model, optimizer, step)
-        logging.info('train_OIS %f', train_OIS)
-        valid_ODS, valid_obj = valid(valid_queue, model)
-        scheduler.step(valid_ODS)
+
+    train_queue_iter=iter(train_queue)
+    epochs_since_start=0
+    loss_valid = 1000
+    logging.info("=====================start training=====================")
+    for i_iter in range(start_iteration, args.iterations):
+        model.train()
         is_best = False
-        if valid_ODS > valid_pre_ODS:
-            valid_pre_ODS = valid_ODS
-            best_OIS = train_OIS
-            is_best = True
-        if is_best:
-            logging.info('the current best model is model %d', epoch)
-            utils.save(args.output_dir, args, model, epoch, step, optimizer, best_OIS, is_best)
-        epoch += 1
-        # draw the curve
-        with open(filename, 'a+')as f:
-            f.write(str(valid_obj.cpu().numpy()))
-            f.write(',')
-            f.write(str(valid_ODS))
-            f.write('\n')
+
+        try:
+            batch = next(train_queue_iter)
+            if batch[0].shape[0] != args.batch_size:
+                batch = next(train_queue_iter)
+        except:
+            epochs_since_start = epochs_since_start + 1
+            print('Epochs since start: ', epochs_since_start)
+            train_queue_iter=iter(train_queue)
+            batch = next(train_queue_iter)
+
+        images,labels=batch
+        images=images.cuda().requires_grad_()
+        labels=labels.cuda()
+
+        loss = cross_entropy_loss(model(images), labels)
+        loss.backward()
+        # nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
+        optimizer.step()
+
+        if (i_iter + 1) % 1 == 0:
+            logging.info('iter %d lr %e', i_iter, optimizer.param_groups[0]['lr'])
+            logging.info('train_loss %e ', loss)
+
+        if (i_iter + 1) % args.val_per_iter == 0:
+            valid_ODS, valid_obj = valid(valid_queue, model)
+            if valid_obj<loss_valid:
+                loss_valid=valid_obj
+                is_best=True
+
+            if is_best:
+                logging.info('the current best model is model %d', i_iter)
+                utils.save_for_deeplab(args.output_dir, args, model, i_iter, optimizer, is_best)
+
+            # draw the curve
+            with open(filename, 'a+')as f:
+                f.write(str(valid_obj.cpu().numpy()))
+                f.write(',')
+                f.write(str(valid_ODS))
+                f.write('\n')
 
     logging.info('train is finished!')
     try:
@@ -366,22 +367,22 @@ def main():
                 loss.append(eval(line.split(',')[0]))
                 accuracy_ODS.append(eval(line.split(',')[1]))
 
-        evaluate.accuracyandlossCurve(loss, accuracy_ODS, args.epochs)
+        evaluate.accuracyandlossCurve(loss, accuracy_ODS, args.iterations//args.val_per_iter)
     except:
         logging.info('the plot of valid set is failed')
         pass
 
     root = "./data/HED-BSDS"
-    test_data = dataloader_BSD_aux.BSD_loader(root=root,split='test')
+    test_data = dataloader_BSD_aux.BSD_loader(root=root, split='test')
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
 
     logging.info('loading the best model.')
     output_dir = './exp/NAONet_BSD_500/'
-    _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS = utils.load(output_dir)
+    _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_for_deeplab(output_dir)
     build_fn = get_builder(args.dataset)
     train_queue, valid_queue, model, optimizer, scheduler = build_fn(model_state_dict,
-                                                                      optimizer_state_dict,
-                                                                      epoch=epoch - 1)
+                                                                     optimizer_state_dict,
+                                                                     i_iter=start_iteration-1)
     test(test_queue, model)
     logging.info('test is finished!')
     if (args.save == True):

@@ -34,7 +34,7 @@ class BSD_loader(Dataset):
             with open(self.filelist, 'r') as f:
                 self.filelist = f.readlines()
         else:
-            self.imgs = glob.glob((os.path.join(root,'BSR/BSDS500/data/images',split,'*.jpg')))
+            self.imgs = glob.glob(os.path.join(root,'BSR/BSDS500/data/images',split,'*.jpg'))
 
     def __len__(self):
         if self.split=='train':
@@ -74,7 +74,7 @@ class BSD_loader(Dataset):
 
 if __name__=="__main__":
     root = str(os.getcwd().split('/utils')[0]) + "/data/HED-BSDS"
-    bsd__dataset = BSD_loader(root=root,split='val')
+    bsd__dataset = BSD_loader(root=root,split='train')
     print(len(bsd__dataset))
     train_loader = torch.utils.data.DataLoader(dataset=bsd__dataset,
                           batch_size = 2,
