@@ -10,12 +10,11 @@ import argparse
 import torch.nn as nn
 import torch.utils
 import torch.nn.functional as F
-import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torch.backends.cudnn as cudnn
-from model.model import NASUNetBSD
+from model import NASUNetBSD
 from search.model_search import NASUNetSegmentationWS
-from ops.operations import OPERATIONS_search_with_mor,OPERATIONS_with_mor,OPERATIONS_without_mor_ops,OPERATIONS_search_without_mor_ops
+from ops.operations import OPERATIONS_search_with_mor, OPERATIONS_search_without_mor_ops
 from controller import NAO
 
 parser = argparse.ArgumentParser(description='NAO Search')

@@ -2,13 +2,13 @@ import sys
 import glob
 import numpy as np
 import torch
-from utils import utils, evaluate, dataset
+from utils import utils, evaluate, dataloader_BSD_aux
 import logging
 import argparse
 import torch.nn as nn
 import torch.utils
 import torch.backends.cudnn as cudnn
-from model import NASUNetBSD
+from model.deeplab_v3.decoder import DeepLab
 import os
 
 parser = argparse.ArgumentParser()
@@ -23,7 +23,7 @@ parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--batch_size', type=int, default=8)
 parser.add_argument('--eval_batch_size', type=int, default=4)
-parser.add_argument('--epochs', type=int, default=200)
+parser.add_argument('--epochs', type=int, default=100)
 parser.add_argument('--layers', type=int, default=4)
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=16)  # 64
@@ -47,7 +47,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format=log_format, datefmt='%m/%d %I:%M:%S %p')
 
 
-def train(train_queue, model, optimizer, global_step, criterion):
+def train(train_queue, model, optimizer, global_step):
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
 
@@ -59,7 +59,7 @@ def train(train_queue, model, optimizer, global_step, criterion):
         target = target.cuda()
 
         img_predict = model(input)
-        loss = criterion(img_predict, target.squeeze(1).long())
+        loss = cross_entropy_loss(img_predict, target)
 
         optimizer.zero_grad()
         global_step += 1
@@ -79,7 +79,7 @@ def train(train_queue, model, optimizer, global_step, criterion):
     return OIS.avg, objs.avg, global_step
 
 
-def valid(valid_queue, model, criterion):
+def valid(valid_queue, model):
     objs = utils.AvgrageMeter()
 
     # set the mode of model to eval
@@ -92,7 +92,7 @@ def valid(valid_queue, model, criterion):
             target = target.cuda()
 
             img_predict = model(input)
-            loss = criterion(img_predict, target.squeeze(1).long())
+            loss = cross_entropy_loss(img_predict, target)
 
             img_predict = torch.nn.functional.softmax(img_predict, 1)
             ## with channel=1 we get the img[B,H,W]
@@ -127,7 +127,7 @@ def valid(valid_queue, model, criterion):
     return ODS, objs.avg
 
 
-def test(test_queue, model, criterion):
+def test(test_queue, model):
     objs = utils.AvgrageMeter()
 
     # set the mode of model to eval
@@ -141,7 +141,7 @@ def test(test_queue, model, criterion):
             target = target.cuda()
 
             img_predict = model(input)
-            loss = criterion(img_predict, target.squeeze(1).long())
+            loss = cross_entropy_loss(img_predict, target)
 
             img_predict = torch.nn.functional.softmax(img_predict, 1)
             ## with channel=1 we get the img[B,H,W]
@@ -251,12 +251,24 @@ def get_builder(dataset):
         return build_BSD_500
 
 
+def cross_entropy_loss(prediction, label):
+    label = label.long()
+    mask = label.float()
+    num_positive = torch.sum((mask==1).float()).float()
+    num_negative = torch.sum((mask==0).float()).float()
+
+    mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
+    mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
+
+    cost = torch.nn.functional.binary_cross_entropy(
+            prediction.float(),label.float(), weight=mask, reduce=False)
+    return torch.sum(cost) / (num_negative + num_positive)
+
 def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     epoch = kwargs.pop('epoch')
-
-    data_path = os.getcwd() + "/data/BSR/BSDS500/data/"
-    train_data = dataset.BSD_loader(data_path, type='train', random_crop=True, random_flip=True)
-    valid_data = dataset.BSD_loader(data_path, type='val', random_crop=False, random_flip=False)
+    root ="./data/HED-BSDS"
+    train_data = dataloader_BSD_aux.BSD_loader(root=root,split='train')
+    valid_data = dataloader_BSD_aux.BSD_loader(root=root,split='val')
 
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batch_size, pin_memory=True, num_workers=16, shuffle=True)
@@ -264,9 +276,7 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     valid_queue = torch.utils.data.DataLoader(
         valid_data, batch_size=args.eval_batch_size, pin_memory=True, num_workers=16, shuffle=False)
 
-    model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels, nodes=args.nodes,
-                       use_aux_head=args.use_aux_head, arch=args.arch, use_softmax_head=False,
-                       double_down_channel=False)
+    model = DeepLab(output_stride=16, class_num=2, pretrained=False, freeze_bn=False)
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
     if model_state_dict is not None:
@@ -277,8 +287,10 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
         model = nn.DataParallel(model)
     model = model.cuda()
 
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
+    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
+    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
+    # train_criterion = cross_entropy_loss().cuda()
+    # eval_criterion = cross_entropy_loss().cuda()
 
     optimizer = torch.optim.SGD(
         model.parameters(),
@@ -289,9 +301,9 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     if optimizer_state_dict is not None:
         optimizer.load_state_dict(optimizer_state_dict)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min, epoch)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.5, patience=3)
-    return train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs), args.lr_min, epoch)
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.5, patience=3)
+    return train_queue, valid_queue, model,optimizer, scheduler
 
 
 def main():
@@ -311,9 +323,9 @@ def main():
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS = utils.load(output_dir)
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler = build_fn(model_state_dict,
-                                                                                                      optimizer_state_dict,
-                                                                                                      epoch=epoch - 1)
+    train_queue, valid_queue, model, optimizer, scheduler = build_fn(model_state_dict,
+                                                                  optimizer_state_dict,
+                                                                  epoch=epoch - 1)
 
     filename = "./curve/accuracy_loss_validation.txt"  # --for draw save the loss and ods of valid set
     if not os.path.exists(os.path.dirname(filename)):
@@ -325,9 +337,9 @@ def main():
     while epoch < args.epochs:
         # logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
         logging.info('epoch %d lr %e', epoch, optimizer.param_groups[0]['lr'])
-        train_OIS, train_obj, step = train(train_queue, model, optimizer, step, train_criterion)
+        train_OIS, train_obj, step = train(train_queue, model, optimizer, step)
         logging.info('train_OIS %f', train_OIS)
-        valid_ODS, valid_obj = valid(valid_queue, model, eval_criterion)
+        valid_ODS, valid_obj = valid(valid_queue, model)
         scheduler.step(valid_ODS)
         is_best = False
         if valid_ODS > valid_pre_ODS:
@@ -359,18 +371,18 @@ def main():
         logging.info('the plot of valid set is failed')
         pass
 
-    data_path = os.getcwd() + "/data/BSR/BSDS500/data/"
-    test_data = dataset.BSD_loader(data_path, type='test', random_crop=False, random_flip=False)
+    root = "./data/HED-BSDS"
+    test_data = dataloader_BSD_aux.BSD_loader(root=root,split='test')
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
 
     logging.info('loading the best model.')
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, epoch, step, optimizer_state_dict, best_OIS = utils.load(output_dir)
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, train_criterion, eval_criterion, optimizer, scheduler = build_fn(model_state_dict,
-                                                                                                      optimizer_state_dict,
-                                                                                                      epoch=epoch - 1)
-    test(test_queue, model, eval_criterion)
+    train_queue, valid_queue, model, optimizer, scheduler = build_fn(model_state_dict,
+                                                                      optimizer_state_dict,
+                                                                      epoch=epoch - 1)
+    test(test_queue, model)
     logging.info('test is finished!')
     if (args.save == True):
         try:

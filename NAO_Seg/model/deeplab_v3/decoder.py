@@ -9,13 +9,13 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from model import resnet50
-from model import SynchronizedBatchNorm2d
+from model.deeplab_v3.ResNet import resnet50
+from model.deeplab_v3.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
 
 import sys
-sys.path.append(os.path.abspath('..'))
+sys.path.append(os.path.abspath('../..'))
 
-from model import Encoder
+from model.deeplab_v3.encoder import Encoder
 
 
 class Decoder(nn.Module):
@@ -66,9 +66,9 @@ class Decoder(nn.Module):
 
 
 
-class NAODeepLabS(nn.Module):
+class DeepLab(nn.Module):
     def __init__(self, output_stride, class_num, pretrained, bn_momentum=0.1, freeze_bn=False):
-        super(NAODeepLabS, self).__init__()
+        super(DeepLab, self).__init__()
         self.Resnet50 = resnet50(bn_momentum, pretrained)
         self.encoder = Encoder(bn_momentum, output_stride)
         self.decoder = Decoder(class_num, bn_momentum)
@@ -90,68 +90,14 @@ class NAODeepLabS(nn.Module):
                 m.eval()
 
 
-# class NAOSDecoder(nn.Module):
-#     def __init__(self, args, classes, nodes, channels, arch):
-#         super(NAOSDecoder, self).__init__()
-#         self.args = args
-#         self.search_space = args.search_space
-#         self.classes = classes
-#         self.nodes = nodes
-#         self.channels = channels
-#         if isinstance(arch, str):
-#             arch = list(map(int, arch.strip().split()))
-#
-#         self.conv_arch = arch
-#
-#         stem_multiplier = 3
-#         channels = stem_multiplier * self.channels
-#
-#         outs = [[32, 32, channels], [32, 32, channels]]
-#         channels = self.channels
-#         self.cells = nn.ModuleList()
-#         for i in range(self.layers + 2):
-#             if i not in self.pool_layers:
-#                 cell = Cell(self.search_space, self.conv_arch, outs, channels, False, i, self.layers + 2, self.steps,
-#                             self.drop_path_keep_prob)
-#             else:
-#                 channels *= 2
-#                 cell = Cell(self.search_space, self.reduc_arch, outs, channels, True, i, self.layers + 2, self.steps,
-#                             self.drop_path_keep_prob)
-#             self.cells.append(cell)
-#             outs = [outs[-1], cell.out_shape]
-#
-#         self.global_pooling = nn.AdaptiveAvgPool2d(1)
-#         self.dropout = nn.Dropout(1 - self.keep_prob)
-#         self.classifier = nn.Linear(outs[-1][-1], classes)
-#
-#         self.init_parameters()
-#
-#     def init_parameters(self):
-#         for w in self.parameters():
-#             if w.data.dim() >= 2:
-#                 nn.init.kaiming_normal_(w.data)
-#
-#     def forward(self, input, step=None):
-#         aux_logits = None
-#         s0 = s1 = self.stem(input)
-#         for i, cell in enumerate(self.cells):
-#             s0, s1 = s1, cell(s0, s1, step)
-#             if self.use_aux_head and i == self.aux_head_index and self.training:
-#                 aux_logits = self.auxiliary_head(s1)
-#         out = s1
-#         out = self.global_pooling(out)
-#         out = self.dropout(out)
-#         logits = self.classifier(out.view(out.size(0), -1))
-#         return logits, aux_logits
-#
-# if __name__ =="__main__":
-#     model = NAODeepLabS(output_stride=16, class_num=21, pretrained=False, freeze_bn=False)
-#     model.eval()
-#     # print(model)
-#     # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#     # model = model.to(device)
-#     # summary(model, (3, 513, 513))
-#     # for m in model.named_modules():
-#     for m in model.modules():
-#         if isinstance(m, SynchronizedBatchNorm2d):
-#             print(m)
+if __name__ =="__main__":
+    model = DeepLab(output_stride=16, class_num=21, pretrained=False, freeze_bn=False)
+    model.eval()
+    # print(model)
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # model = model.to(device)
+    # summary(model, (3, 513, 513))
+    # for m in model.named_modules():
+    for m in model.modules():
+        if isinstance(m, SynchronizedBatchNorm2d):
+            print(m)

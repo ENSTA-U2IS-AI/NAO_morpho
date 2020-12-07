@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.utils
 import torchvision.datasets as dset
 import torch.backends.cudnn as cudnn
-from model.model import NASNetworkCIFAR
+from model import NASNetworkCIFAR
 
 parser = argparse.ArgumentParser()
 
