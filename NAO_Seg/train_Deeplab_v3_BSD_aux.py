@@ -39,8 +39,9 @@ parser.add_argument('--use_aux_head', action='store_true', default=True)
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=2)
 parser.add_argument('--save', type=bool, default=True)
-parser.add_argument('--iterations', type=int, default=10)
-parser.add_argument('--val_per_iter', type=int, default=2)
+parser.add_argument('--iterations', type=int, default=40000)
+parser.add_argument('--val_per_iter', type=int, default=1000)
+parser.add_argument('--lr_schedule_power', type=float, default=0.9)
 args = parser.parse_args()
 
 utils.create_exp_dir(args.output_dir, scripts_to_save=glob.glob('*.py'))
@@ -239,6 +240,16 @@ def cross_entropy_loss(prediction, label):
         prediction.float(), label.float(), weight=mask, reduce=False)
     return torch.sum(cost) / (num_negative + num_positive)
 
+
+def lr_poly(base_lr, iter, max_iter, power):
+    return base_lr * ((1 - float(iter) / max_iter) ** (power))
+
+def adjust_learning_rate(optimizer, i_iter):
+    lr = lr_poly(args.lr_max, i_iter, args.iterations, args.lr_schedule_power)
+    optimizer.param_groups[0]['lr'] = lr
+    if len(optimizer.param_groups) > 1 :
+        optimizer.param_groups[1]['lr'] = lr * 10
+
 def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     i_iter = kwargs.pop('i_iter')
     root = "./data/HED-BSDS"
@@ -276,10 +287,11 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     if optimizer_state_dict is not None:
         optimizer.load_state_dict(optimizer_state_dict)
 
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.iterations), args.lr_min)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.iterations), args.lr_min)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.iterations), args.lr_min, iter)
     # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', factor=0.5, patience=3)
-    return train_queue, valid_queue, model, optimizer, scheduler
+    # return train_queue, valid_queue, model, optimizer, scheduler
+    return train_queue, valid_queue, model, optimizer
 
 
 def main():
@@ -299,9 +311,9 @@ def main():
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_for_deeplab(output_dir)
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, scheduler = build_fn(model_state_dict,
-                                                                     optimizer_state_dict,
-                                                                     i_iter=start_iteration-1)
+    train_queue, valid_queue, model, optimizer = build_fn(model_state_dict,
+                                                         optimizer_state_dict,
+                                                         i_iter=start_iteration-1)
 
     filename = "./curve/loss.txt"  # --for draw save the loss and ods of valid set
     if not os.path.exists(os.path.dirname(filename)):
@@ -317,6 +329,8 @@ def main():
     for i_iter in range(start_iteration, args.iterations):
         model.train()
         is_best = False
+        #adjust learning rate
+        adjust_learning_rate(optimizer, i_iter)
 
         try:
             batch = next(train_queue_iter)
@@ -337,8 +351,8 @@ def main():
         # nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
         optimizer.step()
 
-        if (i_iter + 1) % 1 == 0:
-            logging.info('iter %d lr %e', i_iter, optimizer.param_groups[0]['lr'])
+        if (i_iter + 1) % 500 == 0:
+            logging.info('iter %d lr %e', i_iter+1, optimizer.param_groups[0]['lr'])
             logging.info('train_loss %e ', loss)
 
         if (i_iter + 1) % args.val_per_iter == 0:
@@ -348,8 +362,8 @@ def main():
                 is_best=True
 
             if is_best:
-                logging.info('the current best model is model %d', i_iter)
-                utils.save_for_deeplab(args.output_dir, args, model, i_iter, optimizer, is_best)
+                logging.info('the current best model is model %d', i_iter+1)
+                utils.save_for_deeplab(args.output_dir, args, model, i_iter+1, optimizer, is_best)
 
             # draw the curve
             with open(filename, 'a+')as f:
@@ -380,9 +394,9 @@ def main():
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_for_deeplab(output_dir)
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, scheduler = build_fn(model_state_dict,
-                                                                     optimizer_state_dict,
-                                                                     i_iter=start_iteration-1)
+    train_queue, valid_queue, model, optimizer = build_fn(model_state_dict,
+                                                         optimizer_state_dict,
+                                                         i_iter=start_iteration-1)
     test(test_queue, model)
     logging.info('test is finished!')
     if (args.save == True):
