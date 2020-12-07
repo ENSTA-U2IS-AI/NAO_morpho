@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='train',
                     choices=['train', 'test'])
 parser.add_argument('--data', type=str, default='data/cifar10')
-parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10, cifar100'])
+parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'])
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='small', choices=['small', 'middle', 'large', 'small_with_Sep'])
