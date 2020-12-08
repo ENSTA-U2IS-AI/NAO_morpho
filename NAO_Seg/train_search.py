@@ -458,7 +458,7 @@ def main():
                                               args.search_space)  # [[[downc],[upc]]]
     arch_pool = []
     arch_pool_valid_acc = []
-    for i in range(2):
+    for i in range(4):
         logging.info('Iteration %d', i)
 
         child_arch_pool_prob = []
@@ -493,7 +493,7 @@ def main():
                     arch = ' '.join(map(str, arch[0] + arch[1]))
                     fa.write('{}\n'.format(arch))
                     fp.write('{}\n'.format(perf))
-        if i == 1:
+        if i == 3:
             break
 
         # Train Encoder-Predictor-Decoder
