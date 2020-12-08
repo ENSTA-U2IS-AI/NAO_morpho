@@ -725,7 +725,7 @@ class ConvNet(nn.Module):
         else:
             self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                   stride=self.stride, padding=padding,
-                                  dilation=self.dilation, bias=False)
+                                  dilation=self.dilation, bias=True)
         # self.bn = nn.BatchNorm2d(out_channels, affine=False)
         group = 1 if out_channels % 8 != 0 else out_channels // 8
         if norm_type == 'gn':
@@ -836,12 +836,18 @@ class Aux_dropout(nn.Module):
     def __init__(self, in_channels, out_channels, norm_layer,dropout_rate):
         super(Aux_dropout, self).__init__()
         inter_channels = in_channels // 4
-        self.conv = nn.Sequential(nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
-                                    norm_layer(inter_channels),
-                                    nn.ReLU(),
-                                    nn.Dropout2d(dropout_rate, False),
-                                    nn.Conv2d(inter_channels, out_channels, 1))
-
+        if dropout_rate>0:
+            self.conv = nn.Sequential(nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+                                        norm_layer(inter_channels),
+                                        nn.ReLU(),
+                                        nn.Dropout2d(dropout_rate, False),
+                                        nn.Conv2d(inter_channels, out_channels, 1))
+        else:
+            self.conv = nn.Sequential(nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+                                      norm_layer(inter_channels),
+                                      nn.ReLU(),
+                                      # nn.Dropout2d(dropout_rate, False),
+                                      nn.Conv2d(inter_channels, out_channels, 1))
     def forward(self, x):
         return self.conv(x)
 
@@ -873,12 +879,12 @@ OPERATIONS_with_mor = {
     0:lambda c_in, c_out, stride, affine: MaxPool(3, stride, 1),#'max_pool'
     1:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,stride=2,affine=affine),#'down_cweight_3×3'
     2:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,affine=affine),#'down_conv_3×3'
-    3:lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3, stride=2,affine=affine),#'pix_shuf_pool'
+    3:lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3, stride=2,affine=affine),#'pix_shuf_pool'
     4:lambda c_in, c_out, stride, affine: Identity(c_in, c_out, affine),#'identity'
     5:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,affine=affine),#'cweight_3×3'
     6:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,affine=affine),#'conv_3×3'
     # 7:lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3,affine=affine),#'pix_shuf_3×3'
-    7:lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3,affine=affine),#'pix_shuf_3×3'
+    7:lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3,affine=affine),#'pix_shuf_3×3'
     8:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
 

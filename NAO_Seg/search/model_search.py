@@ -163,7 +163,7 @@ class NASUNetSegmentationWS(nn.Module):
         # self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
 
         if use_aux_head:
-          self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d)
+          self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d,dropout_rate=1-self.keep_prob)
         else:
           self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=1-self.keep_prob, op_type='SC')
 

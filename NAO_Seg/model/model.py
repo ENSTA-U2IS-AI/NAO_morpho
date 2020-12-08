@@ -160,7 +160,7 @@ class NASUNetBSD(nn.Module):
 
         # self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
 
-        if use_aux_head:
+        if self.use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d,dropout_rate=1-self.keep_prob,)
         else:
           self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=1-self.keep_prob, op_type='SC')
