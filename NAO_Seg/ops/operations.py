@@ -856,23 +856,20 @@ class Aux_dropout(nn.Module):
 """
 operation set for cell of U-net segmentation network
 DownOps = [
-            # 'avg_pool',
             'max_pool',
             'down_cweight_3×3',
             'down_conv_3×3',
-            'pix_shuf_pool'
+            'pix_shuf_gradient'
 ]
 
 NormalOps = [
             'identity',
             'cweight_3×3',
             'conv_3×3',
-            'pix_shuf_3×3',
-            # 'gradient'
+            'pix_shuf_gradient',
 ]
 
 UpOps = [
-            # 'up_cweight_3×3',
             'up_conv_3×3'
 ]
 """
