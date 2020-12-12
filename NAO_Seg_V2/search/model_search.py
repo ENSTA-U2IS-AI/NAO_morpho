@@ -1,192 +1,127 @@
 import torch
 import torch.nn as nn
+from ops.operations import OPERATIONS_search_with_mor, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout,OPERATIONS_search_without_mor_ops
 import torch.nn.functional as F
-from ops.operations import OPERATIONS_search_with_mor,OPERATIONS_search_without_mor, MaybeCalibrateSize, WSReLUConvBN, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,ConvNet, Aux_dropout
-from utils.sync_batchnorm.batchnorm import SynchronizedBatchNorm2d
+
 # customise the cell for segmentation
-class Node(nn.Module):
-    def __init__(self, search_space, prev_layers, channels, stride, drop_path_keep_prob=None, node_id=0, layer_id=0,
-                 layers=0, steps=0):
-        super(Node, self).__init__()
+class NodeSegmentation(nn.Module):
+    def __init__(self,search_space,channels,node_id,stride,initial_id_for_up_or_down,drop_path_keep_prob=None,transpose=False):
+        super(NodeSegmentation, self).__init__()
         self.search_space = search_space
         self.channels = channels
         self.stride = stride
         self.drop_path_keep_prob = drop_path_keep_prob
-        self.node_id = node_id
-        self.layer_id = layer_id
-        self.layers = layers
-        self.steps = steps
         self.x_op = nn.ModuleList()
         self.y_op = nn.ModuleList()
+        self.transpose=transpose
+        possible_connection_nums = node_id+2
+        self.initial_id_for_up_or_down = initial_id_for_up_or_down
 
-        num_possible_inputs = node_id + 2
-
-        if search_space == 'small_with_mor':
+        if search_space == 'with_mor_ops':
             OPERATIONS = OPERATIONS_search_with_mor
-        elif search_space == 'small_without_mor':
-            OPERATIONS = OPERATIONS_search_without_mor
-        # elif search_space == 'middle':
-        #     OPERATIONS = OPERATIONS_search_middle
-        # else:
-        #     OPERATIONS = OPERATIONS_search_small
+        elif search_space == 'without_mor_ops':
+            OPERATIONS = OPERATIONS_search_without_mor_ops
 
-        for k, v in OPERATIONS.items():
-            self.x_op.append(v(num_possible_inputs, channels, channels, stride, True))
-            self.y_op.append(v(num_possible_inputs, channels, channels, stride, True))
-
-        self.out_shape = [prev_layers[0][0] // stride, prev_layers[0][1] // stride, channels]
-
-    def forward(self, x, x_id, x_op, y, y_id, y_op, step, bn_train=False):
-        stride = self.stride if x_id in [0, 1] else 1
-        x = self.x_op[x_op](x, x_id, stride, bn_train)
-        stride = self.stride if y_id in [0, 1] else 1
-        y = self.y_op[y_op](y, y_id, stride, bn_train)
-
-        X_DROP = False
-        Y_DROP = False
-        if self.search_space == 'small':
-            if self.drop_path_keep_prob is not None and self.training:
-                X_DROP = True
-            if self.drop_path_keep_prob is not None and self.training:
-                Y_DROP = True
-        elif self.search_space == 'middle':
-            if self.drop_path_keep_prob is not None and self.training:
-                X_DROP = True
-            if self.drop_path_keep_prob is not None and self.training:
-                Y_DROP = True
-        if X_DROP:
-            x = apply_drop_path(x, self.drop_path_keep_prob, self.layer_id, self.layers, step, self.steps)
-        if Y_DROP:
-            y = apply_drop_path(y, self.drop_path_keep_prob, self.layer_id, self.layers, step, self.steps)
-
-        return x + y
+        if search_space == 'with_mor_ops':
+          for i, item in OPERATIONS.items():
+            if 5<=i<9:
+              stride = 1
+            else:
+              stride = 2
+            self.x_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+            self.y_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+        else:
+          for i, item in OPERATIONS.items():
+            if 4<=i<7:
+              stride = 1
+            else:
+              stride = 2
+            self.x_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
+            self.y_op.append(item(possible_connection_nums, channels, channels, stride, affine=False))
       
+    def forward(self, x, x_id, x_op, y, y_id, y_op,bn_train=False):
+        # this mean that only the inputs to the intermediate nodes exists the down sampling ops
+        input_to_intermediate_node = []
+        if self.transpose==True:
+          stride = self.stride if x_id==1 else 1
+          x = self.x_op[x_op](x, x_id, stride,bn_train=bn_train)
+          stride = self.stride if y_id==1 else 1
+          y = self.y_op[y_op](y, y_id, stride,bn_train=bn_train)
+        else:
+          stride = self.stride if x_id in [0, 1] else 1
+          x = self.x_op[x_op](x, x_id, stride,bn_train=bn_train)
+          stride = self.stride if y_id in [0, 1] else 1
+          y = self.y_op[y_op](y, y_id, stride,bn_train=bn_train)
 
-# def consistent_dim(states):
-#     """the aim of this fonction is to make sure that the dimensions of state are consistent """
-#     h_max, w_max = 0, 0
-#     for ss in states:
-#         if h_max < ss.size()[2]:
-#             h_max = ss.size()[2]
-#         if w_max < ss.size()[3]:
-#             w_max = ss.size()[3]
-#     return [interpolate(ss, (h_max, w_max)) for ss in states]
+        input_to_intermediate_node+=[x]
+        input_to_intermediate_node+=[y]
+        out = sum(consistent_dim(input_to_intermediate_node))
+        return out
+      
+from torch.nn.functional import interpolate
+def consistent_dim(states):
+    """the aim of this fonction is to make sure that the dimensions of state are consistent """
+    h_max, w_max = 0, 0
+    for ss in states:
+        if h_max < ss.size()[2]:
+            h_max = ss.size()[2]
+        if w_max < ss.size()[3]:
+            w_max = ss.size()[3]
+    return [interpolate(ss, (h_max, w_max)) for ss in states]
 
-# customise the  dowm cell for segmentation
-class Cell_down(nn.Module):
-    def __init__(self, search_space, prev_layers, nodes, channels, layer_id, layers, steps, drop_path_keep_prob=None):
-        super(Cell_down, self).__init__()
+# customise the cell for segmentation
+class CellSegmentation(nn.Module):
+    def __init__(self, search_space, ch_prev_2,ch_prev, nodes, channels, drop_path_keep_prob=None, type='down'):
+        super(CellSegmentation, self).__init__()
         self.search_space = search_space
-        assert len(prev_layers) == 2
-        self.layer_id = layer_id
-        self.layers = layers
-        self.steps = steps
         self.drop_path_keep_prob = drop_path_keep_prob
         self.ops = nn.ModuleList()
         self.nodes = nodes
+        self.type = type
+        self.nums_inputs_to_intermediate_nodes = 2
+        self.concatenate_nodes = nodes
 
-        #if calibrate size
-        prev_layers = [list(prev_layers[0]), list(prev_layers[1])]
-        self.maybe_calibrate_size = MaybeCalibrateSize(prev_layers, channels)
-        prev_layers = self.maybe_calibrate_size.out_shape
+        if self.type == 'down':
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=2, affine=False, op_type='pre_ops_cell')
+     
+        else:
+            self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, affine=False, op_type='pre_ops_cell')
+          
+        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=1, stride=1, affine=False, op_type='pre_ops_cell')
+
+        self._ops = nn.ModuleList()
 
         # the prev_layers represents chs_prev_2, chs_prev and the channels represents chs
+        initial_id_for_up_or_down=0 if self.type=='down' else 1
         stride = 2
         for i in range(self.nodes):
-            node = Node(search_space, prev_layers, channels, stride, drop_path_keep_prob, i, layer_id, layers, steps)
-            self.ops.append(node)
-            prev_layers.append(node.out_shape)
+          if self.type=='up':
+              node = NodeSegmentation(search_space, channels, i, stride,initial_id_for_up_or_down, drop_path_keep_prob, transpose=True)
+          else:
+              node = NodeSegmentation(search_space, channels, i, stride,initial_id_for_up_or_down, drop_path_keep_prob, )
+          self.ops.append(node)
 
-        out_hw = min([shape[0] for i, shape in enumerate(prev_layers)])
+    def forward(self, s0, s1, arch,bn_train=False):
+        s0 = self.preprocess0(s0)
+        s1 = self.preprocess1(s1)
 
-        self.fac_1 = FactorizedReduce(prev_layers[0][-1], channels, prev_layers[0])
-        self.fac_2 = FactorizedReduce(prev_layers[1][-1], channels, prev_layers[1])
-        self.final_combine_conv = WSReLUConvBN(self.nodes + 2, channels, channels, 1)
-
-        self.out_shape = [out_hw, out_hw, channels]
-
-    def forward(self, s0, s1, arch, step, bn_train=False):
-        s0, s1 = self.maybe_calibrate_size(s0, s1, bn_train=bn_train)
         states = [s0, s1]
-        used = [0] * (self.nodes + 2)
+        # this mean that every intermediate node if and only if two inputs
         for i in range(self.nodes):
             x_id, x_op, y_id, y_op = arch[4 * i], arch[4 * i + 1], arch[4 * i + 2], arch[4 * i + 3]
-            used[x_id] += 1
-            used[y_id] += 1
-            out = self.ops[i](states[x_id], x_id, x_op, states[y_id], y_id, y_op, step, bn_train=bn_train)
+            out = self.ops[i](states[x_id], x_id, x_op, states[y_id], y_id, y_op,bn_train=bn_train)
             states.append(out)
-        concat = []
-        for i, c in enumerate(used):
-            if used[i] == 0:
-                concat.append(i)
-
-        # Notice that in reduction cell, 0, 1 might be concated and they might have to be factorized
-        if 0 in concat:
-            states[0] = self.fac_1(states[0])
-        if 1 in concat:
-            states[1] = self.fac_2(states[1])
-        out = torch.cat([states[i] for i in concat], dim=1)
-        out = self.final_combine_conv(out, concat, bn_train=bn_train)
-        print(out.size())
+            # print('\n')
+           
+        # print(out.size())
+        out = torch.cat(states[-self.concatenate_nodes:], dim=1)
         return out
 
-
-# customise the  dowm cell for segmentation
-class Cell_up(nn.Module):
-    def __init__(self, search_space, prev_layers, nodes, channels, layer_id, layers, steps, drop_path_keep_prob=None):
-        super(Cell_up, self).__init__()
-        self.search_space = search_space
-        assert len(prev_layers) == 2
-        self.layer_id = layer_id
-        self.layers = layers
-        self.steps = steps
-        self.drop_path_keep_prob = drop_path_keep_prob
-        self.ops = nn.ModuleList()
-        self.nodes = nodes
-
-        # calibrate size
-        prev_layers = [list(prev_layers[0]), list(prev_layers[1])]
-        self.maybe_calibrate_size = MaybeCalibrateSize(prev_layers, channels)
-        prev_layers = self.maybe_calibrate_size.out_shape
-
-
-        # the prev_layers represents chs_prev_2, chs_prev and the channels represents chs
-        stride = 1
-        for i in range(self.nodes):
-            node = Node(search_space, prev_layers, channels, stride, drop_path_keep_prob, i, layer_id, layers, steps)
-            self.ops.append(node)
-            prev_layers.append(node.out_shape)
-
-        out_hw = min([shape[0] for i, shape in enumerate(prev_layers)])
-
-        self.final_combine_conv = WSReLUConvBN(self.nodes + 2, channels, channels, 1)
-
-        self.out_shape = [out_hw*2, out_hw*2, channels]
-
-    def forward(self, s0, s1, arch, step, bn_train=False):
-        s0, s1 = self.maybe_calibrate_size(s0, s1, bn_train=bn_train)
-        states = [s0, s1]
-        used = [0] * (self.nodes + 2)
-        for i in range(self.nodes):
-            x_id, x_op, y_id, y_op = arch[4 * i], arch[4 * i + 1], arch[4 * i + 2], arch[4 * i + 3]
-            used[x_id] += 1
-            used[y_id] += 1
-            out = self.ops[i](states[x_id], x_id, x_op, states[y_id], y_id, y_op, step, bn_train=bn_train)
-            states.append(out)
-        concat = []
-        for i, c in enumerate(used):
-            if used[i] == 0:
-                concat.append(i)
-
-        out = torch.cat([states[i] for i in concat], dim=1)
-        out = self.final_combine_conv(out, concat, bn_train=bn_train)
-        out = F.interpolate(out, scale_factor=2, mode='bilinear', align_corners=True)
-        print(out.size())
-        return out
 
 
 class NASUNetSegmentationWS(nn.Module):
-    def __init__(self, args, drop_path_keep_prob, steps, depth=4, classes=2, nodes=5, input_chs=3, channels=16, keep_prob=0.9, use_softmax_head=False,use_aux_head=False):
+    #args, classes, layers, nodes, channels, keep_prob, drop_path_keep_prob, use_aux_head, steps
+    def __init__(self, args, depth=4, classes=2, nodes=5, input_chs=3, chs=16, keep_prob=1, double_down_channel=False, use_softmax_head=False,use_aux_head=False):
         super(NASUNetSegmentationWS, self).__init__()
         self.args = args
         self.search_space = args.search_space
@@ -194,45 +129,44 @@ class NASUNetSegmentationWS(nn.Module):
         self.classes = classes
         self.nodes = nodes
         self.keep_prob = keep_prob
+        self.double_down_channel=double_down_channel
         self.use_softmax_head=use_softmax_head
         self.multiplier = nodes
         self.use_aux_head = use_aux_head
-        self.drop_path_keep_prob = drop_path_keep_prob
-        self.steps = steps
-        self.channels = channels
-        self.total_layers = self.depth * 2
 
-        self.down_layer = [i for i in range(self.depth)]
-        self.up_layer = [i for i in range(self.depth, self.depth * 2)]
-        channels = self.nodes*channels
+        ch_prev_2, ch_prev, ch_curr = self.nodes * chs, self.nodes * chs, chs #chs = channels
 
-        self.stem0 = ConvNet(input_chs, channels, kernel_size=1, op_type='pre_ops')
-        # self.stem1 = ConvNet(input_chs, channels*2, kernel_size=3, stride=2, op_type='pre_ops')
+        self._stem0 = ConvNet(input_chs, ch_prev_2, kernel_size=1, op_type='pre_ops')
+        self._stem1 = ConvNet(input_chs,ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
+        self.cells_down = nn.ModuleList()
+        self.cells_up = nn.ModuleList()
 
-        # the size of img
-        self.cells = nn.ModuleList()
-        outs = [[416, 416, channels], [416, 416, channels]]
-        channels = self.channels
-        # this is the left part of U-Net (encoder) down sampling -- learn the down cell
-        for _,i in enumerate(self.down_layer):
-            channels *=2
-            cell = Cell_down(self.search_space, outs, self.nodes, channels, i, self.total_layers, self.steps,
-                             self.drop_path_keep_prob)
-            self.cells.append(cell)
-            outs =[outs[-1],cell.out_shape]
-        # this is the right part of U-Net (decoder) up sampling -- learn the down cell
-        for _,i in enumerate(self.up_layer):
-            channels = channels//2
-            cell = Cell_up(self.search_space, outs, self.nodes, channels, i, self.total_layers, self.steps,
-                           self.drop_path_keep_prob)
-            self.cells.append(cell)
-            outs =[outs[-1],cell.out_shape]
+        path_recorder = []
+        path_recorder += [ch_prev]
+        path_recorder += [ch_prev_2]
 
+        # this is the left part of U-Net (encoder) down sampling
+        for i in range(depth):
+            ch_curr = 2*ch_curr if self.double_down_channel else ch_curr
+            cell_down = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,type='down')
+            self.cells_down +=[cell_down]
+            ch_prev_2,ch_prev = ch_prev,self.multiplier*ch_curr
+            path_recorder +=[ch_prev]
+
+        # this is the right part of U-Net (decoder) up sampling
+        for i in range(depth+1):
+            ch_prev_2 = path_recorder[-(i+2)]
+            cell_up = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,type='up')
+            self.cells_up += [cell_up]
+            ch_prev = self.multiplier*ch_curr
+            ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
+        
+        # self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
 
         if use_aux_head:
-          self.ConvSegmentation = Aux_dropout(outs[-1][-1], self.classes, nn.BatchNorm2d)
+          self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d,dropout_rate=1-self.keep_prob)
         else:
-          self.ConvSegmentation = ConvNet(outs[-1][-1], self.classes, kernel_size=1, dropout_rate=0.1, op_type='SC')
+          self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=1-self.keep_prob, op_type='SC')
 
         if use_softmax_head:
             self.softmax = nn.Softmax(dim=1)
@@ -244,32 +178,38 @@ class NASUNetSegmentationWS(nn.Module):
             if w.data.dim() >= 2:
                 nn.init.kaiming_normal_(w.data)
 
-    def forward(self, input, arch, step=None, bn_train=False):
-
+    def forward(self, input, arch, bn_train=False):
+        # s0: [4c,h,w]
+        # s1: [4c,0.5g,0.5w]
         _,_,h,w = input.size()
-
-        s0= s1 = self.stem0(input)
-        print(s0.size())
+        s0, s1 = self._stem0(input), self._stem1(input)
         cells_recorder = []
-
+        
+        cells_recorder.append(s0)
+        cells_recorder.append(s1)
+      
         DownCell_arch,UpCell_arch=arch
-
-        for i, cell in enumerate(self.cells):
-            if i in self.down_layer:
-                s0,s1=s1,cell(s0,s1,DownCell_arch,step,bn_train=bn_train)
-            elif i in self.up_layer:
-                s0,s1=s1,cell(s0,s1,UpCell_arch,step,bn_train=bn_train)
-
+       
+        #the left part of U-Net
+        for i, cell in enumerate(self.cells_down):
+            s0,s1 = s1,cell(s0,s1,DownCell_arch,bn_train=bn_train)
+            cells_recorder.append(s1)
+            
+        
+        #the right part of U-Net
+        for i,cell in enumerate(self.cells_up):
+            s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
+            s1 = cell(s0,s1,UpCell_arch,bn_train=bn_train)
+     
         # exit()
         if self.use_aux_head:
-            x = self.ConvSegmentation(s1)
-            x = F.interpolate(x, size=(h,w), mode='bilinear', align_corners=True)
+          x = self.ConvSegmentation(s1)
+          x = interpolate(x, (h,w))
         else:
-            x = self.ConvSegmentation(s1)
-            x = F.interpolate(x, size=(h, w), mode='bilinear', align_corners=True)
+          x = self.ConvSegmentation(s1)
 
         if self.use_softmax_head:
             x = self.softmax(x)
 
-        logits=x
-        return logits
+        x = F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
+        return x

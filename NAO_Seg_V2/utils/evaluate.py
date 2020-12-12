@@ -113,7 +113,7 @@ def evaluation_ODS(img_predict,img_GT):
     img_predict = img_predict[:, 1]
 
     ## we get an array with floats
-    thresholds = np.linspace(0, 1, 20)
+    thresholds = np.linspace(0, 1, 100)
 
     f1_score = 0.
     img_predict = img_predict.cpu().detach().numpy().astype('float32')
@@ -184,7 +184,7 @@ def save_predict_imgs(img_predict,nums):
     img_predict = img_predict[:, 1]
     img_predict = img_predict.squeeze()
     img_predict = img_predict.cpu().detach().numpy().astype('float32')
-    threshold = 0.79285
+    threshold = 0.76
     img_predict = np.where(img_predict>=threshold,img_predict,0)
     img_predict *= 255
     edge = 255 - img_predict
@@ -234,8 +234,8 @@ def accuracyandlossCurve(loss, valid_OIS, epoches):
     plt.plot(x_loss, y_loss)
     plt.title('Valid: loss Vs epoches')
     plt.ylabel('Valid loss')
-    y_ticks = np.arange(0, 2, 0.2)
-    plt.yticks(y_ticks)
+    # y_ticks = np.arange(0, 2, 0.2)
+    # plt.yticks(y_ticks)
 
     plt.subplot(2, 1, 2)
     plt.plot(x_accuracy, y_valid_OIS, color='red', label='valid_ois')
@@ -248,3 +248,28 @@ def accuracyandlossCurve(loss, valid_OIS, epoches):
     plt.savefig('./curve/accuracy_loss_validation.png')
     plt.show()
 
+# def accuracyandlossCurve(loss, valid_OIS, epoches):
+#     """this fonction is to display the accuracy and loss of the validation"""
+#     x_loss = np.linspace(1, epoches, num=epoches)
+#     x_accuracy = np.linspace(1, epoches, num=epoches)
+#     y_loss = loss
+#     y_valid_OIS = valid_OIS
+#     plt.figure(figsize=(10, 8))
+
+#     plt.subplot(2, 1, 1)
+#     plt.plot(x_loss, y_loss)
+#     plt.title('Valid: loss Vs epoches')
+#     plt.ylabel('Valid loss')
+#     # y_ticks = np.arange(0, 2, 0.2)
+#     # plt.yticks(y_ticks)
+
+#     plt.subplot(2, 1, 2)
+#     plt.plot(x_accuracy, y_valid_OIS, color='red', label='train_loss')
+#     # plt.plot(x_accuracy,y_accuracy_top5,color='blue',label='top5')
+#     plt.title('train: loss Vs epoches')
+#     plt.ylabel('train_loss')
+#     # y_ticks = np.arange(0, 1.1, 0.1)
+#     # plt.yticks(y_ticks)
+#     plt.legend()
+#     plt.savefig('./curve/loss.png')
+#     plt.show()

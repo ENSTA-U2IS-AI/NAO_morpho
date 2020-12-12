@@ -385,26 +385,6 @@ class FactorizedReduce(nn.Module):
         out = self.bn(out)
         return out
 
-"""class for upsampling"""
-class FactorizedUpSampling(nn.Module):
-    def __init__(self, C_in, C_out, shape, affine=True):
-        super(FactorizedUpSampling, self).__init__()
-        assert C_out % 2 == 0
-
-        self.path1 = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                                   nn.Conv2d(C_in, C_out // 2, 1, bias=False))
-        self.path2 = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                                   nn.Conv2d(C_in, C_out // 2, 1, bias=False))
-        self.bn = nn.BatchNorm2d(C_out, affine=affine)
-
-    def forward(self, x, bn_train=False):
-        if bn_train:
-            self.bn.train()
-        path1 = x
-        path2 = F.pad(x, (0, 1, 0, 1), "constant", 0)[:, :, 1:, 1:]
-        out = torch.cat([self.path1(path1), self.path2(path2)], dim=1)
-        out = self.bn(out)
-        return out
 
 class MaybeCalibrateSize(nn.Module):
     def __init__(self, layers, channels, affine=True):
@@ -417,18 +397,13 @@ class MaybeCalibrateSize(nn.Module):
         y_out_shape = [hw[1], hw[1], c[1]]
         # previous reduction cell
         if hw[0] != hw[1]:
-            if(hw[0] == 2 * hw[1]):
-                self.relu = nn.ReLU(inplace=INPLACE)
-                self.preprocess_x = FactorizedReduce(c[0], channels, [hw[0], hw[0], c[0]], affine)
-                x_out_shape = [hw[1], hw[1], channels]
-            elif(hw[0]==hw[1]//2):
-                self.relu = nn.ReLU(inplace=INPLACE)
-                self.preprocess_x = FactorizedUpSampling(c[0], channels, [hw[0], hw[0], c[0]], affine)
-                x_out_shape = [hw[1], hw[1], channels]
+            assert hw[0] == 2 * hw[1]
+            self.relu = nn.ReLU(inplace=INPLACE)
+            self.preprocess_x = FactorizedReduce(c[0], channels, [hw[0], hw[0], c[0]], affine)
+            x_out_shape = [hw[1], hw[1], channels]
         elif c[0] != channels:
             self.preprocess_x = ReLUConvBN(c[0], channels, 1, 1, 0, [hw[0], hw[0]], affine)
             x_out_shape = [hw[0], hw[0], channels]
-
         if c[1] != channels:
             self.preprocess_y = ReLUConvBN(c[1], channels, 1, 1, 0, [hw[1], hw[1]], affine)
             y_out_shape = [hw[1], hw[1], channels]
@@ -469,6 +444,21 @@ class FinalCombine(nn.Module):
         out = torch.cat([states[i] for i in self.concat], dim=1)
         return out
 
+class Depthwise_separable_conv(nn.Module):
+    def __init__(self, cin, cout, kernel_size):
+        super(Depthwise_separable_conv, self).__init__()
+        self.depthwise = nn.Conv2d(cin, cin, kernel_size=kernel_size, padding=1, groups=cin,bias=False)
+        self.pointwise = nn.Conv2d(cin, cout, kernel_size=1,bias=False)
+        # self.bn = nn.BatchNorm2d(cout, affine=True)
+        # self.relu= nn.ReLU(inplace=INPLACE)
+
+    def forward(self, x):
+        out = self.depthwise(x)
+        out = self.pointwise(out)
+        # out = self.bn(out)
+        # out = self.relu(out)
+        return out
+
 class Pseudo_Shuff_dilation(nn.Module):
   def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None, affine=True):
       super(Pseudo_Shuff_dilation, self).__init__()
@@ -478,13 +468,13 @@ class Pseudo_Shuff_dilation(nn.Module):
       self.pading = kernel_size// 2
       self.degree = degree
       self.stride = stride 
-      self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
+      self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
       self.pixel_shuffle = nn.PixelShuffle(kernel_size)
       self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-      # self.bn = nn.BatchNorm2d(out_channels, affine=False)
       self.pool = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
-      gp = 1 if out_channels%8 !=0 else out_channels//8
-      self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
+      # gp = 1 if out_channels%8 !=0 else out_channels//8
+      # self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
+      self.bn = nn.BatchNorm2d(out_channels, affine=True)
       #activate function
       self.activate = nn.ReLU(inplace=True)
       
@@ -492,7 +482,7 @@ class Pseudo_Shuff_dilation(nn.Module):
       '''
       x: tensor of shape (B,C,H,W)
       '''
-      x = self.norm(x)
+      x = self.bn(x)
       y = self.convmorph(x)# / self.degree
       y = self.pixel_shuffle(y)
       y = self.pool_(y)
@@ -509,13 +499,13 @@ class WSPseudo_Shuff_dilation(nn.Module):
       self.padding = kernel_size// 2
       self.degree = degree
       self.stride = stride 
-      self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
+      self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
       self.pixel_shuffle = nn.PixelShuffle(kernel_size)
       self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
       self.pool = nn.MaxPool2d(kernel_size=3,stride=2,padding=1)
-      # self.bn = nn.BatchNorm2d(out_channels, affine=True)
-      gp = 1 if out_channels%8 !=0 else out_channels//8
-      self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
+      # gp = 1 if out_channels%8 !=0 else out_channels//8
+      # self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
+      self.bn = nn.BatchNorm2d(out_channels, affine=False)
        #activate function
       self.activate = nn.ReLU(inplace=True)
       
@@ -523,7 +513,7 @@ class WSPseudo_Shuff_dilation(nn.Module):
       '''
       x: tensor of shape (B,C,H,W)
       '''
-      x = self.norm(x)
+      x = self.bn(x)
       y = self.convmorph(x)# / self.degree
       y = self.pixel_shuffle(y)
       y = self.pool_(y)
@@ -541,14 +531,12 @@ class Pseudo_Shuff_gradient(nn.Module):
         self.pading = kernel_size // 2
         self.degree = degree
         self.stride = stride
-        self.convmorph = nn.Conv2d(in_channels, out_channels * kernel_size * kernel_size, kernel_size, stride=1,
-                                   padding=1)
+        # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-        # self.bn = nn.BatchNorm2d(out_channels, affine=False)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        gp = 1 if out_channels % 8 != 0 else out_channels // 8
-        self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
+        self.bn = nn.BatchNorm2d(out_channels, affine=True)
         # activate function
         self.activate = nn.ReLU(inplace=True)
 
@@ -556,7 +544,7 @@ class Pseudo_Shuff_gradient(nn.Module):
         '''
         x: tensor of shape (B,C,H,W)
         '''
-        x = self.norm(x)
+        x = self.bn(x)
         y = self.convmorph(x)  # / self.degree
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
@@ -576,14 +564,14 @@ class WSPseudo_Shuff_gradient(nn.Module):
         self.padding = kernel_size // 2
         self.degree = degree
         self.stride = stride
-        self.convmorph = nn.Conv2d(in_channels, out_channels * kernel_size * kernel_size, kernel_size, stride=1,
-                                   padding=1)
+        # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        # self.bn = nn.BatchNorm2d(out_channels, affine=True)
-        gp = 1 if out_channels % 8 != 0 else out_channels // 8
-        self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
+        # gp = 1 if out_channels % 8 != 0 else out_channels // 8
+        # self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
+        self.bn = nn.BatchNorm2d(out_channels, affine=False)
         # activate function
         self.activate = nn.ReLU(inplace=True)
 
@@ -591,7 +579,7 @@ class WSPseudo_Shuff_gradient(nn.Module):
         '''
         x: tensor of shape (B,C,H,W)
         '''
-        x = self.norm(x)
+        x = self.bn(x)
         y = self.convmorph(x)  # / self.degree
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
@@ -731,15 +719,11 @@ class ConvNet(nn.Module):
             self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                            stride=self.stride, padding=padding,
                                            output_padding=self.out_padding, bias=self.bias)
-            # self.convmorph = nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1)
-            # self.conv = nn.PixelShuffle(2)
-            # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-            #               nn.PixelShuffle(2))
 
         else:
             self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                   stride=self.stride, padding=padding,
-                                  dilation=self.dilation, bias=False)
+                                  dilation=self.dilation, bias=True)
         # self.bn = nn.BatchNorm2d(out_channels, affine=False)
         group = 1 if out_channels % 8 != 0 else out_channels // 8
         if norm_type == 'gn':
@@ -763,7 +747,8 @@ class ConvNet(nn.Module):
           x = self.norm(x)
           x = self.activate(x)
         elif self.op_type=='SC':
-          x = self.dropout(x)
+          if self.dropout_rate>0:
+            x = self.dropout(x)
           x = self.conv(x)
         elif self.op_type=='pre_ops':
           x = self.conv(x)
@@ -802,10 +787,6 @@ class WSConvNet(nn.Module):
             self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                            stride=self.stride, padding=padding,
                                            output_padding=self.out_padding, bias=self.bias)
-            # self.convmorph = nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1)
-            # self.conv = nn.PixelShuffle(2)
-            # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-            #               nn.PixelShuffle(2))
         else:
             self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                   stride=self.stride, padding=padding,
@@ -819,7 +800,6 @@ class WSConvNet(nn.Module):
             
         #activate function
         self.activate = nn.ReLU(inplace=True)
-        # self.activate2 = nn.ReLU(inplace=False)
 
         #dropout
         if self.dropout_rate > 0:
@@ -832,174 +812,99 @@ class WSConvNet(nn.Module):
           x = self.conv(x)
           x = self.norm(x)# add batchnorm to the input
           x = self.activate(x)
-        # elif self.op_type=='SC':
-        #   x = self.dropout(x)
-        #   x = self.conv(x)
-        # elif self.op_type=='pre_ops':
-        #   # x = self.activate(x)
-        #   x = self.conv(x)
-        #   x = self.norm(x)    
-        # elif self.op_type=='pre_ops_cell':
-        #   x = self.activate(x)
-        #   x = self.conv(x)
-        #   x = self.norm(x)        
         return x
 
 class Aux_dropout(nn.Module):
-    def __init__(self, in_channels, out_channels, norm_layer):
+    def __init__(self, in_channels, out_channels, norm_layer,dropout_rate):
         super(Aux_dropout, self).__init__()
         inter_channels = in_channels // 4
-        self.conv = nn.Sequential(nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
-                                    norm_layer(inter_channels),
-                                    nn.ReLU(),
-                                    nn.Dropout2d(0.1, False),
-                                    nn.Conv2d(inter_channels, out_channels, 1))
-
+        if dropout_rate>0:
+            self.conv = nn.Sequential(nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+                                        norm_layer(inter_channels),
+                                        nn.ReLU(),
+                                        nn.Dropout2d(dropout_rate, False),
+                                        nn.Conv2d(inter_channels, out_channels, 1))
+        else:
+            self.conv = nn.Sequential(nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+                                      norm_layer(inter_channels),
+                                      nn.ReLU(),
+                                      # nn.Dropout2d(dropout_rate, False),
+                                      nn.Conv2d(inter_channels, out_channels, 1))
     def forward(self, x):
         return self.conv(x)
 
+"""
+operation set for cell of U-net segmentation network
+DownOps = [
+            # 'avg_pool',
+            'max_pool',
+            'down_cweight_3×3',
+            'down_conv_3×3',
+            'pix_shuf_pool'
+]
 
-class Conv2d_WS(nn.Conv2d):
-    '''WS:Weight Standardization
-    ref:https://github.com/joe-siyuan-qiao/WeightStandardization
-    '''
+NormalOps = [
+            'identity',
+            'cweight_3×3',
+            'conv_3×3',
+            'pix_shuf_3×3',
+            # 'gradient'
+]
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, dilation=1, groups=1, bias=True):
-        super(Conv2d_WS, self).__init__(in_channels, out_channels, kernel_size, stride,
-                                        padding, dilation, groups, bias)
-
-    def forward(self, x):
-        weight = self.weight
-        weight_mean = weight.mean(dim=1, keepdim=True).mean(dim=2,
-                                                            keepdim=True).mean(dim=3, keepdim=True)
-        weight = weight - weight_mean
-        std = weight.view(weight.size(0), -1).std(dim=1).view(-1, 1, 1, 1) + 1e-5
-        weight = weight / std.expand_as(weight)
-        return F.conv2d(x, weight, self.bias, self.stride,
-                        self.padding, self.dilation, self.groups)
-
-
-class Depthwise_separable_conv_WS(nn.Module):
-    def __init__(self, cin, cout, kernel_size):
-        super(Depthwise_separable_conv_WS, self).__init__()
-        self.depthwise = Conv2d_WS(cin, cin, kernel_size=kernel_size, padding=1, groups=cin)
-        self.pointwise = Conv2d_WS(cin, cout, kernel_size=1)
-
-    def forward(self, x):
-        out = self.depthwise(x)
-        out = self.pointwise(out)
-        return out
-
-
-class Pseudo_Shuff_dilation_WS(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
-        super(Pseudo_Shuff_dilation_WS, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.pading = kernel_size // 2
-        self.degree = degree
-        self.stride = stride
-        self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
-        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-        self.bn = nn.BatchNorm2d(out_channels, affine=False)
-        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-
-    def forward(self, x):
-        '''
-        x: tensor of shape (B,C,H,W)
-        '''
-        x = self.bn(x)
-        y = self.convmorph(x)  # / self.degree
-        y = self.pixel_shuffle(y)
-        y = self.pool_(y)
-        if self.stride == 2:
-            y = self.pool(y)
-        return y
-
-
-class WSPseudo_Shuff_dilation_WS(nn.Module):
-    """
-    the first WS: weights shared
-    the second WS:  Weight Standardization
-    """
-
-    def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None):
-        super(WSPseudo_Shuff_dilation_WS, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.padding = kernel_size // 2
-        self.degree = degree
-        self.stride = stride
-        self.convmorph = Depthwise_separable_conv_WS(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
-        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.bn = nn.BatchNorm2d(out_channels, affine=True)
-
-    def forward(self, x, x_id, stride, bn_train=False):
-        '''
-        x: tensor of shape (B,C,H,W)
-        '''
-        x = self.bn(x)
-        y = self.convmorph(x)  # / self.degree
-        # y = F.conv2d(x, self.w, stride=self.stride, padding=self.padding)
-        y = self.pixel_shuffle(y)
-        y = self.pool_(y)
-        if stride == 2:
-            y = self.pool(y)
-        return y
-
+UpOps = [
+            # 'up_cweight_3×3',
+            'up_conv_3×3'
+]
+"""
 
 OPERATIONS_with_mor = {
-    0: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 3, stride, 1, shape, affine=affine),
-    1: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 5, stride, 2, shape, affine=affine),
-    2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
-    3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1),
-    4: lambda c_in, c_out, stride, shape, affine: Identity(c_in,c_out) if stride == 1 else FactorizedReduce(c_in, c_out, shape,affine=affine),
-    5: lambda c_in, c_out, stride, shape, affine: Pseudo_Shuff_dilation_WS(c_in, c_out, 3, 3, stride),  # dil_shuf_3x3
+    0:lambda c_in, c_out, stride, affine: MaxPool(3, stride, 1),#'max_pool'
+    1:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,stride=2,affine=affine),#'down_cweight_3×3'
+    2:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,affine=affine),#'down_conv_3×3'
+    3:lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3, stride=2,affine=affine),#'pix_shuf_pool'
+    4:lambda c_in, c_out, stride, affine: Identity(c_in, c_out, affine),#'identity'
+    5:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,affine=affine),#'cweight_3×3'
+    6:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,affine=affine),#'conv_3×3'
+    7:lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3,affine=affine),#'pix_shuf_3×3'
+    8:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
 
 OPERATIONS_search_with_mor = {
-    0: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 3, 1, affine=affine),
-    1: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 5, 2, affine=affine),
-    2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
-    3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
-    4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),
-    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation_WS(n, c_in, c_out, 3, 3, stride),  # dil_shuf_3x3
-}
-OPERATIONS_without_mor = {
-    0: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 3, stride, 1, shape, affine=affine),
-    1: lambda c_in, c_out, stride, shape, affine: SepConv(c_in, c_out, 5, stride, 2, shape, affine=affine),
-    2: lambda c_in, c_out, stride, shape, affine: AvgPool(3, stride, 1),
-    3: lambda c_in, c_out, stride, shape, affine: MaxPool(3, stride, 1),
-    4: lambda c_in, c_out, stride, shape, affine: Identity(c_in,c_out) if stride == 1 else FactorizedReduce(c_in, c_out, shape,
-                                                                                                  affine=affine)
+    0:lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),#'max_pool'
+    1:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,stride=2,affine=affine),#'down_cweight_3×3'
+    2:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,affine=affine),#'down_conv_3×3'
+    3:lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_gradient(n, c_in, c_out, 3, 3, stride=2,affine=affine),#'pix_shuf_pool'
+    4:lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),#'identity'
+    5:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,affine=affine),#'cweight_3×3'
+    6:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,affine=affine),#'conv_3×3'
+    7:lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_gradient(n, c_in, c_out, 3, 3,affine=affine),#'pix_shuf_3×3'
+    8:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
 
-OPERATIONS_search_without_mor = {
-    0: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 3, 1, affine=affine),
-    1: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 5, 2, affine=affine),
-    2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
-    3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
-    4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine)
+"""
+0-3 down ops
+4-6 normal ops
+7-8 up ops
+"""
+OPERATIONS_without_mor_ops = {
+    0:lambda c_in, c_out, stride, affine: AvgPool(3, stride, 1),#'avg_pool'
+    1:lambda c_in, c_out, stride, affine: MaxPool(3, stride, 1),#'max_pool'
+    2:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,stride=2,affine=affine),#'down_cweight_3×3'
+    3:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,affine=affine),#'down_conv_3×3'
+    4:lambda c_in, c_out, stride, affine: Identity(c_in, c_out, affine),#'identity'
+    5:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,affine=affine),#'cweight_3×3'
+    6:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,affine=affine),#'conv_3×3'
+    7:lambda c_in, c_out, stride, affine: CWeightNet(c_in,c_out,stride=2,transpose=True,affine=affine),#'up_cweight_3×3'
+    8:lambda c_in, c_out, stride, affine: ConvNet(c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }
-
-'''
-normal operations for NAODeeplab
-'''
-OPERATIONS_Deeplab ={
-    0: lambda c_in, c_out, stride, affine: CWeightNet(c_in, c_out, affine=affine),  # 'cweight_3×3'
-    1: lambda c_in, c_out, stride, affine: ConvNet(c_in, c_out, affine=affine),  # 'conv_3×3'
-    2: lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
-    3: lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
-}
-OPERATIONS_Search_Deeplab ={
-    0: lambda c_in, c_out, stride, affine: CWeightNet(c_in, c_out, affine=affine),  # 'cweight_3×3'
-    1: lambda c_in, c_out, stride, affine: ConvNet(c_in, c_out, affine=affine),  # 'conv_3×3'
-    2: lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
-    3: lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, 3, 3, affine=affine),  # 'pix_shuf_3×3'
+OPERATIONS_search_without_mor_ops = {
+    0:lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),#'avg_pool'
+    1:lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),#'max_pool'
+    2:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,stride=2,affine=affine),#'down_cweight_3×3'
+    3:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,affine=affine),#'down_conv_3×3'
+    4:lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride, affine=affine),#'identity'
+    5:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,affine=affine),#'cweight_3×3'
+    6:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,affine=affine),#'conv_3×3'
+    7:lambda n, c_in, c_out, stride, affine: WSCWeightNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_cweight_3×3'
+    8:lambda n, c_in, c_out, stride, affine: WSConvNet(n,c_in,c_out,stride=2,transpose=True,affine=affine),#'up_conv_3×3'
 }

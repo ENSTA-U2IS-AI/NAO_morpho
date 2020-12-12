@@ -425,7 +425,7 @@ def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True
         'epoch': epoch,
         'step': step,
         'optimizer': optimizer.state_dict(),
-        'best_OIS': best_OIS
+        'best_OIS': best_OIS,
     }
     filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
     torch.save(state_dict, filename)
@@ -440,7 +440,7 @@ def load(model_path):
     newest_filename = os.path.join(model_path, 'checkpoint.pt')
     # newest_filename = os.path.join(model_path, 'checkpoint.pt')
     if not os.path.exists(newest_filename):
-        return None, None, 0, 0, None, 0, 0
+        return None, None, 0, 0, None, 0
     state_dict = torch.load(newest_filename)
     args = state_dict['args']
     model_state_dict = state_dict['model']
@@ -450,6 +450,77 @@ def load(model_path):
     best_OIS = state_dict.get('best_OIS')
     print('model loaded!')
     return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS
+
+
+def save_best_model(model_path, args, model, epoch, optimizer, best_ois, is_best=True):
+    if hasattr(model, 'module'):
+        model = model.module
+    state_dict = {
+        'args': args,
+        'model': model.state_dict() if model else {},
+        'epoch': epoch,
+        'optimizer': optimizer.state_dict(),
+        'best_ois':best_ois
+    }
+    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(iter))
+    torch.save(state_dict, filename)
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    shutil.copyfile(filename, newest_filename)
+    if is_best:
+        best_filename = os.path.join(model_path, 'checkpoint_best.pt')
+        shutil.copyfile(filename, best_filename)
+
+
+def load_best_model(model_path):
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    # newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    if not os.path.exists(newest_filename):
+        return None, None, 0,  None,0.
+    state_dict = torch.load(newest_filename)
+    args = state_dict['args']
+    model_state_dict = state_dict['model']
+    epoch = state_dict['epoch']
+    optimizer_state_dict = state_dict['optimizer']
+    best_ois=state_dict['best_ois']
+    print('model loaded!')
+    return args, model_state_dict, epoch, optimizer_state_dict,best_ois
+
+# def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
+#     if hasattr(model, 'module'):
+#         model = model.module
+#     state_dict = {
+#         'args': args,
+#         'model': model.state_dict() if model else {},
+#         'epoch': epoch,
+#         'step': step,
+#         'optimizer': optimizer.state_dict(),
+#         'best_OIS': best_OIS,
+#         'best_ODS': best_ODS,
+#     }
+#     filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
+#     torch.save(state_dict, filename)
+#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
+#     shutil.copyfile(filename, newest_filename)
+#     if is_best:
+#         best_filename = os.path.join(model_path, 'checkpoint_best.pt')
+#         shutil.copyfile(filename, best_filename)
+#
+#
+# def load(model_path):
+#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
+#     # newest_filename = os.path.join(model_path, 'checkpoint.pt')
+#     if not os.path.exists(newest_filename):
+#         return None, None, 0, 0, None, 0, 0
+#     state_dict = torch.load(newest_filename)
+#     args = state_dict['args']
+#     model_state_dict = state_dict['model']
+#     epoch = state_dict['epoch']
+#     step = state_dict['step']
+#     optimizer_state_dict = state_dict['optimizer']
+#     best_OIS = state_dict.get('best_OIS')
+#     best_ODS = state_dict.get('best_ODS')
+#     print('model loaded!')
+#     return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS
 
 
 # def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True):
@@ -509,18 +580,122 @@ def sample_arch(arch_pool, prob=None):
     arch = arch_pool[index]
     return arch
 
-def generate_arch(n, num_nodes, num_ops=7):
-    def _get_arch():
-        arch = []
-        for i in range(2, num_nodes+2):
-            p1 = np.random.randint(0, i)
-            op1 = np.random.randint(0, num_ops)
-            p2 = np.random.randint(0, i)
-            op2 = np.random.randint(0 ,num_ops)
-            arch.extend([p1, op1, p2, op2])
-        return arch
-    archs = [[_get_arch(), _get_arch()] for i in range(n)] #[[[conv],[reduc]]]
+
+def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
+    def _get_down_arch():
+      arch = []
+      for i in range(2, num_nodes+2):
+        if i==2:
+          p1 = np.random.randint(0, i)
+          op1 = np.random.randint(0, 4)
+          p2 = np.random.randint(0, i)
+          if p2==p1:
+            p2 = 1-p1
+          op2 = np.random.randint(0 ,4)
+        else:
+          p1 = np.random.randint(0, i)
+          if 0<=p1<2:
+            op1 = np.random.randint(0, 4)
+          else:
+            op1 = np.random.randint(4, 8)
+          p2 = np.random.randint(0, i)
+          if 0<=p2<2:
+            op2 = np.random.randint(0 ,4)
+          else:
+            op2 = np.random.randint(4 ,8)
+        arch.extend([p1, op1, p2, op2])
+      return arch
+    def _get_up_arch():
+      arch = []
+      for i in range(2, num_nodes+2):
+        if i==2:
+          p1 = np.random.randint(0, i)
+          if p1==0:
+            op1 = np.random.randint(4, 8)
+          else:
+            op1 = np.random.randint(8, 9)
+          p2 = np.random.randint(0, i)
+          if p2==p1:
+            p2 = 1-p1
+          if p2==0:
+            op2 = np.random.randint(4 ,8)
+          else:
+            op2 = np.random.randint(8 ,9)
+        else:
+          p1 = np.random.randint(0, i)
+          if p1 == 1:
+            op1 = np.random.randint(8, 9)
+          else:
+            op1 = np.random.randint(4, 8)
+          p2 = np.random.randint(0, i)
+          if p2 == 1:
+            op2 = np.random.randint(8 ,9)
+          else:
+            op2 = np.random.randint(4 ,8)
+        arch.extend([p1, op1, p2, op2])
+      return arch
+
+     # generate archs without mor ops
+    def _get_down_arch_without_mor_ops():
+      arch = []
+      for i in range(2, num_nodes+2):
+        if i==2:
+          p1 = np.random.randint(0, i)
+          op1 = np.random.randint(0, 4)
+          p2 = np.random.randint(0, i)
+          if p2==p1:
+            p2 = 1-p1
+          op2 = np.random.randint(0 ,4)
+        else:
+          p1 = np.random.randint(0, i)
+          if 0<=p1<2:
+            op1 = np.random.randint(0, 4)
+          else:
+            op1 = np.random.randint(4, 7)
+          p2 = np.random.randint(0, i)
+          if 0<=p2<2:
+            op2 = np.random.randint(0 ,4)
+          else:
+            op2 = np.random.randint(4 ,7)
+        arch.extend([p1, op1, p2, op2])
+      return arch
+
+    def _get_up_arch_without_mor_ops():
+      arch = []
+      for i in range(2, num_nodes+2):
+        if i==2:
+          p1 = np.random.randint(0, i)
+          if p1==0:
+            op1 = np.random.randint(4, 7)
+          else:
+            op1 = np.random.randint(7, 9)
+          p2 = np.random.randint(0, i)
+          if p2==p1:
+            p2 = 1-p1
+          if p2==0:
+            op2 = np.random.randint(4 ,7)
+          else:
+            op2 = np.random.randint(7 ,9)
+        else:
+          p1 = np.random.randint(0, i)
+          if p1 == 1:
+            op1 = np.random.randint(7, 9)
+          else:
+            op1 = np.random.randint(4, 7)
+          p2 = np.random.randint(0, i)
+          if p2 == 1:
+            op2 = np.random.randint(7 ,9)
+          else:
+            op2 = np.random.randint(4 ,7)
+        arch.extend([p1, op1, p2, op2])
+      return arch
+      
+    if search_space=='with_mor_ops':
+      archs = [[_get_down_arch(), _get_up_arch()] for i in range(n)] #[[[DownSOps],[UpSOps]]]
+    else:
+      archs = [[_get_down_arch_without_mor_ops(), _get_up_arch_without_mor_ops()] for i in range(n)] #[[[DownSOps],[UpSOps]]]
     return archs
+
 
 def build_dag(arch):
     if arch is None:
@@ -613,6 +788,14 @@ def generate_eval_points(eval_epochs, stand_alone_epoch, total_epochs):
 
 def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
     n = len(seq)
+    if search_space=='with_mor_ops':
+        down_ops=[0,1,2,3]
+        normal_ops=[4,5,6,7]
+        up_ops=[8]
+    else:
+        down_ops=[0,1,2,3]
+        normal_ops = [4, 5, 6]
+        up_ops = [7,8]
 
     def down_cell(cell_seq):
         for i in range(nodes):
@@ -621,26 +804,26 @@ def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
             p2 = int(cell_seq[4 * i + 2]) - 1
             op2 = int(cell_seq[4 * i + 3]) - 7
             if i ==0:
-                if (p1<0 or p1>1):
+                if p1 not in [0,1]:
                     return False
-                if (p2<0 or p2>1):
+                if p2 not in [0,1]:
                     return False
-                if (op1>=5) or (op2>=5):
+                if (op1 not in  down_ops) or (op2 not in down_ops):
                     return False
                 if p1 == p2:
                     return False
             else:
-                if 0<=p1<2:
-                    if op1>=5:
+                if p1 in [0,1]:
+                    if (op1 not in  down_ops):
                         return False
                 else:
-                    if op1>8 or op1<5:
+                    if (op1 not in  normal_ops):
                         return False
-                if 0<=p2<2:
-                    if op2>=5:
+                if p2 in [0,1]:
+                    if (op2 not in down_ops):
                         return False
                 else:
-                    if op2>8 or op2<5:
+                    if (op2 not in  normal_ops):
                         return False
 
         return True
@@ -657,123 +840,39 @@ def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
                 elif p2==0 and p1!=1:
                     return False
                 elif p1==0 and p2==1:
-                    if op1 in [0,1,2,3,4,9,10]:
+                    if op1 not in normal_ops:
                         return False
-                    if op2 in [i for i in range(0,9)]:
+                    if op2 not in up_ops:
                         return False
                 elif p1==1 and p2==0:
-                    if op2 in [0, 1, 2, 3, 4, 9, 10]:
+                    if op2 not in normal_ops:
                         return False
-                    if op1 in [i for i in range(0, 9)]:
+                    if op1 not in up_ops:
                         return False
                 else:
                     return False
             else:
                 if p1==1:
-                    if op1 in [i for i in range(0, 9)]:
+                    if op1 not in up_ops:
                         return False
                 else:
-                    if op1 in [9,10]:
-                        return False
-                    if op1 in [0,1,2,3,4]:
+                    if op1 not in normal_ops:
                         return False
                 if p2==1:
-                    if op2 in [i for i in range(0, 9)]:
+                    if op2 not in up_ops:
                         return False
                 else:
-                    if op2 in [9,10]:
-                        return False
-                    if op2 in [0,1,2,3,4]:
+                    if op2 not in normal_ops:
                         return False
         return True
-    #add the restrictions for the search space without mor ops
 
-    def down_cell_without_mor_ops(cell_seq):
-        for i in range(nodes):
-            p1 = int(cell_seq[4 * i]) - 1
-            op1 = int(cell_seq[4 * i + 1]) - 7
-            p2 = int(cell_seq[4 * i + 2]) - 1
-            op2 = int(cell_seq[4 * i + 3]) - 7
-            if i ==0:
-                if (p1<0 or p1>1):
-                    return False
-                if (p2<0 or p2>1):
-                    return False
-                if (op1>=4) or (op2>=4):
-                    return False
-                if p1 == p2:
-                    return False
-            else:
-                if 0<=p1<2:
-                    if op1>=4:
-                        return False
-                else:
-                    if op1>6 or op1<4:
-                        return False
-                if 0<=p2<2:
-                    if op2>=4:
-                        return False
-                else:
-                    if op2>6 or op2<4:
-                        return False
-
-        return True
-
-    def up_cell_without_mor_ops(cell_seq):
-        for i in range(nodes):
-            p1 = int(cell_seq[4 * i]) - 1
-            op1 = int(cell_seq[4 * i + 1]) - 7
-            p2 = int(cell_seq[4 * i + 2]) - 1
-            op2 = int(cell_seq[4 * i + 3]) - 7
-            if i ==0:
-                if p1==0 and p2!=1:
-                    return False
-                elif p2==0 and p1!=1:
-                    return False
-                elif p1==0 and p2==1:
-                    if op1 in [0,1,2,3,7,8]:
-                        return False
-                    if op2 in [i for i in range(0,7)]:
-                        return False
-                elif p1==1 and p2==0:
-                    if op2 in [0, 1, 2, 3, 7, 8]:
-                        return False
-                    if op1 in [i for i in range(0, 7)]:
-                        return False
-                else:
-                    return False
-            else:
-                if p1==1:
-                    if op1 in [i for i in range(0, 7)]:
-                        return False
-                else:
-                    if op1 in [7,8]:
-                        return False
-                    if op1 in [0,1,2,3]:
-                        return False
-                if p2==1:
-                    if op2 in [i for i in range(0, 7)]:
-                        return False
-                else:
-                    if op2 in [7,8]:
-                        return False
-                    if op2 in [0,1,2,3]:
-                        return False
-        return True
     down_seq = seq[:n // 2]
     up_seq = seq[n // 2:]
     print(down_seq)
     print(up_seq)
-    if search_space=='with_mor_ops':
-      print(1)
-      down_arch = down_cell(down_seq)
-      up_arch = up_cell(up_seq)
-      
-    else:
-      print(2)
-      down_arch = down_cell_without_mor_ops(down_seq)
-      up_arch = up_cell_without_mor_ops(up_seq)
-      
+
+    down_arch = down_cell(down_seq)
+    up_arch = up_cell(up_seq)
 
     if down_arch and up_arch:
         print('the new generated arch is valid')
