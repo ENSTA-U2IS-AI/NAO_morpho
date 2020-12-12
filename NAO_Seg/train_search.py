@@ -128,7 +128,7 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     epoch = kwargs.pop('epoch')
     ratio = kwargs.pop('ratio')
     data_path = os.getcwd() + "/data/BSR/BSDS500/data/"
-    train_data = dataset.BSD_loader(root=data_path, split='train', random_crop=True, random_flip=True,
+    train_data = dataset.BSD_loader(root=data_path, split='train', random_crop=True, random_flip=False,
                                     normalisation=False)
     valid_data = dataset.BSD_loader(root=data_path, split='val', random_crop=False, random_flip=False,
                                     normalisation=False)

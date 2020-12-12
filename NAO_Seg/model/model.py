@@ -1,6 +1,7 @@
 import torch.nn as nn
 from ops.operations import OPERATIONS_with_mor, ConvNet, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine, Aux_dropout, OPERATIONS_without_mor_ops
 import torch
+import torch.nn.functional as F
 
 # customise the cell for segmentation
 class NodeSegmentation(nn.Module):
@@ -201,6 +202,8 @@ class NASUNetBSD(nn.Module):
           
         if self.use_softmax_head:
           x = self.softmax(x)
+        
+        x= F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
         # print(x.size())
         # exit()
         return x
