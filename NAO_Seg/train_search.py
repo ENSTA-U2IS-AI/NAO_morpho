@@ -31,7 +31,7 @@ parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=2)
 parser.add_argument('--child_eval_batch_size', type=int, default=10)
-parser.add_argument('--child_epochs', type=int, default=60)  # 60
+parser.add_argument('--child_epochs', type=int, default=100)  # 60
 parser.add_argument('--child_layers', type=int, default=4)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=16)
@@ -51,7 +51,7 @@ parser.add_argument('--child_gamma', type=float, default=0.97, help='learning ra
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
 parser.add_argument('--controller_seed_arch', type=int, default=300)
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=100)
+parser.add_argument('--controller_new_arch', type=int, default=200)
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)

@@ -40,7 +40,7 @@ parser.add_argument('--child_grad_bound', type=float, default=5.0)
 parser.add_argument('--child_lr_max', type=float, default=0.025)
 parser.add_argument('--child_lr_min', type=float, default=0.001)
 parser.add_argument('--child_keep_prob', type=float, default=0.8)
-parser.add_argument('--child_drop_path_keep_prob', type=float, default=0.9)
+parser.add_argument('--child_drop_path_keep_prob', type=float, default=None)
 parser.add_argument('--child_l2_reg', type=float, default=5e-4)
 parser.add_argument('--child_use_aux_head', action='store_true', default=True)
 parser.add_argument('--child_arch_pool', type=str, default=None)
@@ -188,7 +188,6 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         loss = criterion(img_predict, target.long())
 
         optimizer.zero_grad()
-        global_step += 1
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
         optimizer.step()
@@ -472,12 +471,12 @@ def main():
         step = 0
         scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
-            scheduler.step()
-            lr = scheduler.get_lr()[0]
+            lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
             # Randomly sample an example to train
             train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool,
                                                      child_arch_pool_prob, train_criterion)
+            scheduler.step()
             logging.info('train_OIS %f', train_acc)
 
         logging.info("Evaluate seed archs")

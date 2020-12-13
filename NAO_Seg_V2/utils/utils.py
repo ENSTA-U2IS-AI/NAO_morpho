@@ -485,76 +485,6 @@ def load_best_model(model_path):
     print('model loaded!')
     return args, model_state_dict, epoch, optimizer_state_dict,best_ois
 
-# def save(model_path, args, model, epoch, step, optimizer, best_OIS, best_ODS, is_best=True):
-#     if hasattr(model, 'module'):
-#         model = model.module
-#     state_dict = {
-#         'args': args,
-#         'model': model.state_dict() if model else {},
-#         'epoch': epoch,
-#         'step': step,
-#         'optimizer': optimizer.state_dict(),
-#         'best_OIS': best_OIS,
-#         'best_ODS': best_ODS,
-#     }
-#     filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
-#     torch.save(state_dict, filename)
-#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
-#     shutil.copyfile(filename, newest_filename)
-#     if is_best:
-#         best_filename = os.path.join(model_path, 'checkpoint_best.pt')
-#         shutil.copyfile(filename, best_filename)
-#
-#
-# def load(model_path):
-#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
-#     # newest_filename = os.path.join(model_path, 'checkpoint.pt')
-#     if not os.path.exists(newest_filename):
-#         return None, None, 0, 0, None, 0, 0
-#     state_dict = torch.load(newest_filename)
-#     args = state_dict['args']
-#     model_state_dict = state_dict['model']
-#     epoch = state_dict['epoch']
-#     step = state_dict['step']
-#     optimizer_state_dict = state_dict['optimizer']
-#     best_OIS = state_dict.get('best_OIS')
-#     best_ODS = state_dict.get('best_ODS')
-#     print('model loaded!')
-#     return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS, best_ODS
-
-
-# def save(model_path, args, model, epoch, step, optimizer, best_OIS, is_best=True):
-#     if hasattr(model, 'module'):
-#         model = model.module
-#     state_dict = {
-#         'args': args,
-#         'model': model.state_dict() if model else {},
-#         'epoch': epoch,
-#         'step': step,
-#         'optimizer': optimizer.state_dict(),
-#         'best_OIS': best_OIS,
-#     }
-#     filename = os.path.join(model_path, 'checkpoint{}.pt'.format(epoch))
-#     torch.save(state_dict, filename)
-#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
-#     shutil.copyfile(filename, newest_filename)
-#     if is_best:
-#         best_filename = os.path.join(model_path, 'checkpoint_best.pt')
-#         shutil.copyfile(filename, best_filename)
-  
-
-# def load(model_path):
-#     newest_filename = os.path.join(model_path, 'checkpoint.pt')
-#     if not os.path.exists(newest_filename):
-#         return None, None, 0, 0, None, 0
-#     state_dict = torch.load(newest_filename)
-#     args = state_dict['args']
-#     model_state_dict = state_dict['model']
-#     epoch = state_dict['epoch']
-#     step = state_dict['step']
-#     optimizer_state_dict = state_dict['optimizer']
-#     best_OIS = state_dict.get('best_OIS')
-#     return args, model_state_dict, epoch, step, optimizer_state_dict, best_OIS
 
 def create_exp_dir(path, scripts_to_save=None):
     if not os.path.exists(path):
@@ -582,6 +512,27 @@ def sample_arch(arch_pool, prob=None):
 
 
 def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
+    """
+    # generate archs with mor ops
+    operation set for cell of U-net segmentation network
+    DownOps = [
+                'max_pool',                 --0
+                'down_cweight_3×3',         --1
+                'down_conv_3×3',            --2
+                'pix_shuf_gradient'         --3
+    ]
+
+    NormalOps = [
+                'identity',                 --4
+                'cweight_3×3',              --5
+                'conv_3×3',                 --6
+                'pix_shuf_gradient',        --7
+    ]
+
+    UpOps = [
+                'up_conv_3×3'               --8
+    ]
+    """
     def _get_down_arch():
       arch = []
       for i in range(2, num_nodes+2):
@@ -635,7 +586,13 @@ def generate_arch(n, num_nodes, num_ops=11, search_space='with_mor_ops'):
         arch.extend([p1, op1, p2, op2])
       return arch
 
-     # generate archs without mor ops
+    """
+    # generate archs with mor ops
+    operation set for cell of U-net segmentation network
+    0-3 down ops
+    4-6 normal ops
+    7-8 up ops
+    """
     def _get_down_arch_without_mor_ops():
       arch = []
       for i in range(2, num_nodes+2):

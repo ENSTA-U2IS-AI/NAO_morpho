@@ -564,14 +564,14 @@ class WSPseudo_Shuff_gradient(nn.Module):
         self.padding = kernel_size // 2
         self.degree = degree
         self.stride = stride
+        self.convmorph = WSSepConv(num_possible_inputs,in_channels,out_channels * kernel_size * kernel_size, kernel_size,self.padding)
         # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-        self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
+
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        # gp = 1 if out_channels % 8 != 0 else out_channels // 8
-        # self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
-        self.bn = nn.BatchNorm2d(out_channels, affine=False)
+        # self.bn = nn.BatchNorm2d(out_channels, affine=False)
+        self.bn = WSBN(num_possible_inputs, out_channels, affine=affine)
         # activate function
         self.activate = nn.ReLU(inplace=True)
 
@@ -624,8 +624,6 @@ class CWeightNet(nn.Module):
                 self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                                stride=self.stride, padding=padding, output_padding=self.out_padding,
                                                 bias=False)
-                # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-                #           nn.PixelShuffle(2))
             else:
                 self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
                                       stride=stride, padding=padding, bias=False)
@@ -674,8 +672,6 @@ class WSCWeightNet(nn.Module):
                 self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                                stride=self.stride, padding=padding, output_padding=self.out_padding,
                                                 bias=False)
-                # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-                #           nn.PixelShuffle(2))
             else:
                 self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
                                       stride=stride, padding=padding, bias=False)
@@ -836,23 +832,20 @@ class Aux_dropout(nn.Module):
 """
 operation set for cell of U-net segmentation network
 DownOps = [
-            # 'avg_pool',
             'max_pool',
             'down_cweight_3×3',
             'down_conv_3×3',
-            'pix_shuf_pool'
+            'pix_shuf_gradient'
 ]
 
 NormalOps = [
             'identity',
             'cweight_3×3',
             'conv_3×3',
-            'pix_shuf_3×3',
-            # 'gradient'
+            'pix_shuf_gradient',
 ]
 
 UpOps = [
-            # 'up_cweight_3×3',
             'up_conv_3×3'
 ]
 """
