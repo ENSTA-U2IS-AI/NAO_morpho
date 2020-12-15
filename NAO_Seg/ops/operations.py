@@ -528,7 +528,7 @@ class Pseudo_Shuff_gradient(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
-        self.pading = kernel_size // 2
+        self.padding = kernel_size // 2
         self.degree = degree
         self.stride = stride
         # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
@@ -554,39 +554,6 @@ class Pseudo_Shuff_gradient(nn.Module):
         return gradient
 
 
-# class WSPseudo_Shuff_gradient(nn.Module):
-#     def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None,
-#                  affine=True):
-#         super(WSPseudo_Shuff_gradient, self).__init__()
-#         self.in_channels = in_channels
-#         self.out_channels = out_channels
-#         self.kernel_size = kernel_size
-#         self.padding = kernel_size // 2
-#         self.degree = degree
-#         self.stride = stride
-#         # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-#         self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
-#         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
-#         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
-#         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-#         # gp = 1 if out_channels % 8 != 0 else out_channels // 8
-#         # self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
-#         self.bn = nn.BatchNorm2d(out_channels, affine=False)
-#         # activate function
-#         self.activate = nn.ReLU(inplace=True)
-#
-#     def forward(self, x, x_id, stride, bn_train=False):
-#         '''
-#         x: tensor of shape (B,C,H,W)
-#         '''
-#         x = self.bn(x)
-#         y = self.convmorph(x)  # / self.degree
-#         y = self.pixel_shuffle(y)
-#         y = self.pool_(y)
-#         gradient = y-x
-#         if stride == 2:
-#             gradient = self.pool(gradient)
-#         return gradient
 class WSPseudo_Shuff_gradient(nn.Module):
     def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None,
                  affine=True):
@@ -597,14 +564,12 @@ class WSPseudo_Shuff_gradient(nn.Module):
         self.padding = kernel_size // 2
         self.degree = degree
         self.stride = stride
-        self.convmorph = WSSepConv(num_possible_inputs,in_channels,out_channels * kernel_size * kernel_size, kernel_size,self.padding)
         # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-
+        self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        # self.bn = nn.BatchNorm2d(out_channels, affine=False)
-        self.bn = WSBN(num_possible_inputs, out_channels, affine=affine)
+        self.bn = nn.BatchNorm2d(out_channels, affine=False)
         # activate function
         self.activate = nn.ReLU(inplace=True)
 

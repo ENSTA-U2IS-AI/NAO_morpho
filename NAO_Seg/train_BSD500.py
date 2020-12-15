@@ -8,7 +8,6 @@ import argparse
 import torch.nn as nn
 import torch.utils
 import torch.backends.cudnn as cudnn
-from model.deeplab_v3.decoder import DeepLab
 from model.model import NASUNetBSD
 import os
 
@@ -22,7 +21,7 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=4)#8
+parser.add_argument('--batch_size', type=int, default=2)#8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=100)
 parser.add_argument('--layers', type=int, default=5)
@@ -397,51 +396,6 @@ def main():
             f.write(str(valid_OIS))
             f.write('\n')
   
-    # for epoch in range(args.epochs):
-    #     avg_loss = 0.
-    #     model.train()
-    #     for i, (images, labels) in enumerate(train_queue):
-    #         i_iter += 1
-    #         adjust_learning_rate(optimizer, i_iter, total_iter)
-    #
-    #         images = images.cuda().requires_grad_()
-    #         labels = labels.cuda()
-    #
-    #         loss = cross_entropy_loss(model(images), labels)
-    #
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
-    #         optimizer.step()
-    #
-    #         avg_loss += float(loss)
-    #
-    #         is_best = False
-    #         if (i_iter + 1) % 100 == 0:
-    #             logging.info('iter %5d lr %e train_avg_loss %e ', i_iter + 1, optimizer.param_groups[0]['lr'],
-    #                          avg_loss / 100)
-    #             avg_loss = 0.
-    #
-    #         if (i_iter + 1) % args.val_per_iter == 0:
-    #             valid_ODS, valid_obj = valid(valid_queue, model)
-    #             if valid_obj < loss_valid:
-    #                 loss_valid = valid_obj
-    #                 is_best = True
-    #
-    #             if is_best:
-    #                 logging.info('the current best model is model %d', i_iter + 1)
-    #                 utils.save_for_deeplab(args.output_dir, args, model, i_iter + 1, optimizer, is_best)
-    #                 save_pre_imgs(valid_queue, model)
-    #
-    #             # draw the curve
-    #             with open(filename, 'a+')as f:
-    #                 f.write(str(valid_obj.cpu().numpy()))
-    #                 f.write(',')
-    #                 f.write(str(valid_ODS))
-    #                 f.write('\n')
-    #
-    #             model.train()
-
     logging.info('train is finished!')
     try:
         loss = []

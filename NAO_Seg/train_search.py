@@ -45,13 +45,14 @@ parser.add_argument('--child_l2_reg', type=float, default=5e-4)
 parser.add_argument('--child_use_aux_head', action='store_true', default=True)
 parser.add_argument('--child_arch_pool', type=str, default=None)
 parser.add_argument('--child_lr', type=float, default=0.1)
+parser.add_argument('--child_double_down_channel', type=bool, default=True)
 
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
 parser.add_argument('--controller_seed_arch', type=int, default=300)
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=200)
+parser.add_argument('--controller_new_arch', type=int, default=150)
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -142,7 +143,8 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=args.num_class, nodes=args.child_nodes,
                                   chs=args.child_channels,
                                   keep_prob=args.child_keep_prob, use_softmax_head=False,
-                                  use_aux_head=args.child_use_aux_head)
+                                  use_aux_head=args.child_use_aux_head,
+                                  double_down_channel=args.child_double_down_channel)
     model = model.cuda()
 
     train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
@@ -244,7 +246,8 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
         logging.info('Train and evaluate the {} arch'.format(i + 1))
         model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels,
                            keep_prob=args.child_keep_prob, nodes=args.child_nodes,
-                           use_aux_head=args.child_use_aux_head, arch=arch, use_softmax_head=False)
+                           use_aux_head=args.child_use_aux_head, arch=arch, use_softmax_head=False,
+                           double_down_channel=args.child_double_down_channel)
         model = model.cuda()
         model.train()
         optimizer = torch.optim.SGD(
@@ -464,7 +467,8 @@ def main():
         for arch in child_arch_pool:
             tmp_model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels,
                                    keep_prob=args.child_keep_prob, nodes=args.child_nodes,
-                                   use_aux_head=args.child_use_aux_head, arch=arch)
+                                   use_aux_head=args.child_use_aux_head, arch=arch,use_softmax_head=False,
+                                   double_down_channel=args.child_double_down_channel)
             child_arch_pool_prob.append(utils.count_parameters_in_MB(tmp_model))
             del tmp_model
 
@@ -552,8 +556,8 @@ def main():
         new_archs = []
         max_step_size = 50
         predict_step_size = 0
-        top30_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:30]))
-        nao_infer_dataset = utils.NAODataset(top30_archs, None, False)
+        top50_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:50]))
+        nao_infer_dataset = utils.NAODataset(top50_archs, None, False)
         nao_infer_queue = torch.utils.data.DataLoader(
             nao_infer_dataset, batch_size=len(nao_infer_dataset), shuffle=False, pin_memory=True)
         while len(new_archs) < args.controller_new_arch:

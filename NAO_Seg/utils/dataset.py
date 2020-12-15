@@ -9,7 +9,7 @@ from torchvision import transforms, datasets
 import random
 
 class BSD_loader(Dataset):
-    def __init__(self,root,split='train',target_size=(512,512),random_crop=False,random_flip=False,ignore_label=0,normalisation=True):
+    def __init__(self,root,split='train',target_size=(512,512),random_crop=False,random_flip=False,ignore_label=0,normalisation=True,keep_size=False):
         # first: load imgs form indicated path
         self.root = root
         self.type = type
@@ -21,6 +21,7 @@ class BSD_loader(Dataset):
         self.ignore_label=ignore_label
         self.split = split
         self.normalisation=normalisation
+        self.keep_size=keep_size
 
     def randomCrop(self, image, label):
         f_scale = 0.5 + random.randint(0, 11) / 10.0
@@ -58,13 +59,24 @@ class BSD_loader(Dataset):
             w_off = random.randint(0, img_w - self.crop_w)
             img = np.asarray(img_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
             label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
-        elif(self.split!='test'):
+        elif (self.split != 'test'):
             img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
             label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_NEAREST)
-        elif(self.split=='test'):
-            if(img.shape[0]<img.shape[1]):
-                img=cv2.transpose(img)
-                label=cv2.transpose(label)
+        elif (self.split == 'test'):
+            if(self.keep_size==True):
+                if (img.shape[0] < img.shape[1]):
+                    img = cv2.transpose(img)
+                    label = cv2.transpose(label)
+            else:
+                img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+                label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_NEAREST)
+        # elif(self.split!='test'):
+        #     img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+        #     label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_NEAREST)
+        # elif(self.split=='test'):
+        #     if(img.shape[0]<img.shape[1]):
+        #         img=cv2.transpose(img)
+        #         label=cv2.transpose(label)
 
 
         if(self.random_flip):
