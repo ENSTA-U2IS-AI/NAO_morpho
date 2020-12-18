@@ -96,13 +96,6 @@ def valid(valid_queue, model,criterion):
             img_predict = model(input)
             loss = criterion(img_predict, target.long())
 
-            # img_predict = torch.nn.functional.softmax(img_predict, 1)
-            # ## with channel=1 we get the img[B,H,W]
-            # img_predict = img_predict[:, 1]
-            # img_predict = img_predict.cpu().detach().numpy().astype('float32')
-            # img_GT = target.cpu().detach().numpy().astype(np.bool)
-            # imgs_predict.append(img_predict)
-            # imgs_gt.append((img_GT))
             ois = evaluate.evaluation_OIS(img_predict, target)
             n = input.size(0)
             objs.update(loss.data, n)
@@ -111,20 +104,6 @@ def valid(valid_queue, model,criterion):
             if (step + 1) % 100 == 0:
                 logging.info('valid %03d loss %e OIS %f', step + 1, objs.avg, OIS.avg)
 
-        # # --calculate the OIS
-        # imgs_predict = np.concatenate(imgs_predict, axis=0)
-        # imgs_gt = np.concatenate(imgs_gt, axis=0)
-        # thresholds = np.linspace(0, 1, 1000)
-        # OIS_th = 0.
-        # for i in range(imgs_predict.shape[0]):
-        #     f1_scores = []
-        #     for th in thresholds:
-        #         edge = np.where(imgs_predict[i] >= th, 1, 0).astype(np.bool)
-        #         f1_scores.append(evaluate.calculate_f1_score(edge, imgs_gt[i]))
-        #     OIS_th += np.argmax(np.array(f1_scores)) / 1000
-        # OIS = OIS_th / imgs_predict.shape[0]
-
-        # logging.info('valid OIS %f ', OIS)
     return OIS.avg, objs.avg
 
 
@@ -170,7 +149,7 @@ def test(test_queue, model,criterion):
             for th in thresholds:
                 edge = np.where(imgs_predict[i] >= th, 1, 0).astype(np.bool)
                 f1_scores.append(evaluate.calculate_f1_score(edge, imgs_gt[i]))
-            OIS_th += np.argmax(np.array(f1_scores)) / 1000
+            OIS_th += np.max(np.array(f1_scores))
         OIS = OIS_th / imgs_predict.shape[0]
 
         # --calculate the ODS
@@ -183,7 +162,7 @@ def test(test_queue, model,criterion):
                 f1_scores.append(evaluate.calculate_f1_score(edge, imgs_gt[i]))
             f1_score_sum = np.sum(np.array(f1_scores))
             ODS_th.append(f1_score_sum)
-        ODS = np.argmax(np.array(ODS_th)) / 1000
+        ODS = np.amax(np.array(ODS_th)) / 1000
 
         print("OIS: %f ODS: %f", OIS, ODS)
     return OIS,ODS

@@ -621,8 +621,6 @@ class CWeightNet(nn.Module):
                 self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                                stride=self.stride, padding=padding, output_padding=self.out_padding,
                                                 bias=False)
-                # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-                #           nn.PixelShuffle(2))
             else:
                 self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
                                       stride=stride, padding=padding, bias=False)
@@ -716,10 +714,6 @@ class ConvNet(nn.Module):
             self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                            stride=self.stride, padding=padding,
                                            output_padding=self.out_padding, bias=self.bias)
-            # self.convmorph = nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1)
-            # self.conv = nn.PixelShuffle(2)
-            # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-            #               nn.PixelShuffle(2))
 
         else:
             self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
@@ -788,10 +782,6 @@ class WSConvNet(nn.Module):
             self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                            stride=self.stride, padding=padding,
                                            output_padding=self.out_padding, bias=self.bias)
-            # self.convmorph = nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1)
-            # self.conv = nn.PixelShuffle(2)
-            # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-            #               nn.PixelShuffle(2))
         else:
             self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                   stride=self.stride, padding=padding,
@@ -818,17 +808,7 @@ class WSConvNet(nn.Module):
           x = self.conv(x)
           x = self.norm(x)# add batchnorm to the input
           x = self.activate(x)
-        # elif self.op_type=='SC':
-        #   x = self.dropout(x)
-        #   x = self.conv(x)
-        # elif self.op_type=='pre_ops':
-        #   # x = self.activate(x)
-        #   x = self.conv(x)
-        #   x = self.norm(x)    
-        # elif self.op_type=='pre_ops_cell':
-        #   x = self.activate(x)
-        #   x = self.conv(x)
-        #   x = self.norm(x)        
+
         return x
 
 class Aux_dropout(nn.Module):

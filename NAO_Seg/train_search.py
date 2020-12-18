@@ -29,12 +29,12 @@ parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--child_batch_size', type=int, default=2)
-parser.add_argument('--child_eval_batch_size', type=int, default=10)
-parser.add_argument('--child_epochs', type=int, default=100)  # 60
-parser.add_argument('--child_layers', type=int, default=4)
+parser.add_argument('--child_batch_size', type=int, default=4)
+parser.add_argument('--child_eval_batch_size', type=int, default=20)
+parser.add_argument('--child_epochs', type=int, default=50)  # 60
+parser.add_argument('--child_layers', type=int, default=2)
 parser.add_argument('--child_nodes', type=int, default=5)
-parser.add_argument('--child_channels', type=int, default=16)
+parser.add_argument('--child_channels', type=int, default=8)
 parser.add_argument('--child_cutout_size', type=int, default=None)
 parser.add_argument('--child_grad_bound', type=float, default=5.0)
 parser.add_argument('--child_lr_max', type=float, default=0.025)
@@ -52,7 +52,7 @@ parser.add_argument('--child_gamma', type=float, default=0.97, help='learning ra
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
 parser.add_argument('--controller_seed_arch', type=int, default=300)
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=150)
+parser.add_argument('--controller_new_arch', type=int, default=100)
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -138,7 +138,7 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
         train_data, batch_size=args.child_batch_size, pin_memory=True, num_workers=16, shuffle=True)
 
     valid_queue = torch.utils.data.DataLoader(
-        valid_data, batch_size=args.child_eval_batch_size, pin_memory=True, num_workers=16, shuffle=False)
+        valid_data, batch_size=args.child_eval_batch_size, pin_memory=True, num_workers=16, shuffle=True)
 
     model = NASUNetSegmentationWS(args, depth=args.child_layers, classes=args.num_class, nodes=args.child_nodes,
                                   chs=args.child_channels,
@@ -226,7 +226,7 @@ def child_valid(valid_queue, model, arch_pool, criterion):
             ois_ = evaluate.evaluation_OIS(img_val_predict, targets)
 
             valid_acc_list.append(ois_)
-            if (i + 1) % 10 == 0:
+            if (i + 1) % 5 == 0:
                 logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
 
     return valid_acc_list
@@ -302,7 +302,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 10 == 0:
+                if (step + 1) % 5 == 0:
                     logging.info('valid %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
         res.append(OIS.avg)
     return res
@@ -556,8 +556,8 @@ def main():
         new_archs = []
         max_step_size = 50
         predict_step_size = 0
-        top50_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:50]))
-        nao_infer_dataset = utils.NAODataset(top50_archs, None, False)
+        top30_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:30]))
+        nao_infer_dataset = utils.NAODataset(top30_archs, None, False)
         nao_infer_queue = torch.utils.data.DataLoader(
             nao_infer_dataset, batch_size=len(nao_infer_dataset), shuffle=False, pin_memory=True)
         while len(new_archs) < args.controller_new_arch:

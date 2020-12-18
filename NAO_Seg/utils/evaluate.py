@@ -85,7 +85,7 @@ def evaluation_OIS(img_predict,img_GT):
         for th in thresholds:
             edge = np.where(img_predict[i] >= th, 1, 0).astype(np.bool)
             f1_scores.append(calculate_f1_score(edge, img_GT[i]))
-        OIS_th += np.argmax(np.array(f1_scores))/100
+        OIS_th += np.max(np.array(f1_scores))
     OIS = OIS_th / img_predict.shape[0]
 
     return OIS
@@ -153,30 +153,6 @@ def save_predict_imgs(img_predict,nums):
         class: C: number of categories
       Reture: F1 score
       """
-    # img_predict = torch.nn.functional.softmax(img_predict, 1)
-
-    # # ## with channel=1 we get the img[B,H,W]
-    # img_predict = img_predict[:, 1]
-
-    # ## we get an array with floats
-    # img_predict = img_predict.cpu().detach().numpy().astype('float32')
-    # # test the image
-    # img_r = img_predict[:,0]
-    # img_g = img_predict[:,1]
-    # img_b = img_predict[:,2]
-    # img_r = img_r.squeeze()
-    # img_g = img_g.squeeze()
-    # img_b = img_b.squeeze()
-    # edge = np.zeros((416,416,3))
-    # # for i in range(img_predict.shape[0]):
-    # img_r *= 255 
-    # img_g *= 255 
-    # img_b *= 255 
-    # edge[:,:,0]=img_r
-    # edge[:,:,1]=img_g
-    # edge[:,:,2]=img_b
-    # edge = np.asarray(edge).astype(np.uint8)
-    # imageio.imwrite('./test/'+str(nums)+'.png', edge)
 
     # test the img_predict
     img_predict = torch.nn.functional.softmax(img_predict, 1)
@@ -191,33 +167,6 @@ def save_predict_imgs(img_predict,nums):
     edge = Image.fromarray(np.uint8(edge))
     edge = edge.convert('L')
     edge.save('./test/' + str(nums) + '.png')
-
-    # # test the target
-    # img_predict = img_predict.cpu().detach().numpy().astype('float32')
-    # img_predict = img_predict.squeeze()
-    # th = (np.max(img_predict)+np.min(img_predict))/1.5
-    # # for i in range(img_predict.shape[0]):
-    # #   edge = np.where(img_predict[i] >= th, 1, 0)
-    # edge = np.where(img_predict >= th, 1, 0)
-    # edge *= 255 
-    # edge = Image.fromarray(np.uint8(edge))
-    # edge = edge.convert('L')
-    # edge.save('./test/'+str(nums)+'.png')
-
-    # edge = Image.fromarray(np.uint8(edge))
-    # edge = edge.convert('RGB')
-    # edge.save('./test/'+str(nums)+'.png')
-    #for target and img_predict
-    # th = (np.max(img_predict)+np.min(img_predict))/32
-    # for i in range(img_predict.shape[0]):
-    #   edge = np.where(img_predict[i] >= th, 1, 0)
-    #   edge *= 255 
-    #   edge = Image.fromarray(np.uint8(edge))
-    #   edge = edge.convert('L')
-    #   edge.save('./test/'+str(nums)+'.png')
-      # imageio.imwrite('./test/'+str(nums)+'.png', edge)
-        # edge = Image.fromarray(edge)
-        # edge.save('./test/'+str(i)+'.png')
 
     return
 
