@@ -6,7 +6,7 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from operations import OPERATIONS_small, OPERATIONS_middle, OPERATIONS_large, OPERATIONS_small_Sep, ReLUConvBN, MaybeCalibrateSize, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine
+from operations import OPERATIONS_small, OPERATIONS_middle, OPERATIONS_large, OPERATIONS_small_Sep, ReLUConvBN, MaybeCalibrateSize, FactorizedReduce, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path, FinalCombine,OPERATIONS_small_without_mor
 from torch import Tensor
 import utils
     
@@ -33,6 +33,8 @@ class Node(nn.Module):
             OPERATIONS = OPERATIONS_small
         elif search_space == 'small_with_Sep':
             OPERATIONS = OPERATIONS_small_Sep
+        elif search_space == 'small_without_mor':
+            OPERATIONS = OPERATIONS_small_without_mor
         elif search_space == 'middle':
             OPERATIONS = OPERATIONS_middle
         elif search_space == 'large':

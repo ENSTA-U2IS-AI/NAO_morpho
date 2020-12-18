@@ -2,7 +2,7 @@ import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from operations import OPERATIONS_search_small, OPERATIONS_search_middle, OPERATIONS_search_small_Sep, WSReLUConvBN, FactorizedReduce, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path
+from operations import OPERATIONS_search_small, OPERATIONS_search_middle, OPERATIONS_search_small_Sep, WSReLUConvBN, FactorizedReduce, MaybeCalibrateSize, AuxHeadCIFAR, AuxHeadImageNet, apply_drop_path,OPERATIONS_search_small_without_mor
 
 
 class Node(nn.Module):
@@ -25,6 +25,8 @@ class Node(nn.Module):
             OPERATIONS = OPERATIONS_search_small
         elif search_space == 'small_with_Sep':
             OPERATIONS = OPERATIONS_search_small_Sep
+        elif search_space == 'small_without_mor':
+            OPERATIONS = OPERATIONS_search_small_without_mor
         elif search_space == 'middle':
             OPERATIONS = OPERATIONS_search_middle
         else:
