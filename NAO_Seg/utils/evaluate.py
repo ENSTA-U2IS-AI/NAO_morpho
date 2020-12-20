@@ -6,59 +6,43 @@ from PIL import Image
 import imageio
 from matplotlib import pyplot as plt
 
-def calculate_f1_score(img_predict,gt):
+def calculate_f_measure(img_predict,gt,beta2=0.3):
 
-    TP_num_pixels = np.sum(gt & img_predict)
-    FP_num_pixels = np.sum(img_predict & ~gt)
-    FN_num_pixels = np.sum(gt & ~img_predict)
+    # TP_num_pixels = np.sum(gt & img_predict)
+    # FP_num_pixels = np.sum(img_predict & ~gt)
+    # FN_num_pixels = np.sum(gt & ~img_predict)
+    # f1_score = 0.
+    # if TP_num_pixels+FP_num_pixels==0:
+    #   Precision = 0.0
+    # else:
+    #   Precision = TP_num_pixels / (TP_num_pixels + FP_num_pixels)
+    # if TP_num_pixels+FN_num_pixels==0:
+    #   Recall = 0.0
+    # else:
+    #   Recall =  TP_num_pixels / (TP_num_pixels + FN_num_pixels)
 
-    f1_score = 0.
-    if TP_num_pixels+FP_num_pixels==0:
-      Precision = 0.0
+    # if Precision+Recall==0:
+    #   F1_measure = 0.0
+    # else:
+    #   F1_measure = 2* Precision * Recall / (Precision + Recall)
+
+    # f1_score+=F1_measure
+    tp=(img_predict*gt).sum()
+    tp_fp=img_predict.sum()
+    tp_fn=gt.sum()
+
+    recall=tp/(tp_fn)
+    if(tp_fp==0):
+      prec=0.
     else:
-      Precision = TP_num_pixels / (TP_num_pixels + FP_num_pixels)
-    if TP_num_pixels+FN_num_pixels==0:
-      Recall = 0.0
+      prec=tp/(tp_fp)
+    
+    if(recall+prec==0):
+      f_measure=0.
     else:
-      Recall =  TP_num_pixels / (TP_num_pixels + FN_num_pixels)
+      f_measure = (1+beta2)*prec*recall/(beta2*prec+recall)
+    return f_measure
 
-    if Precision+Recall==0:
-      F1_measure = 0.0
-    else:
-      F1_measure = 2* Precision * Recall / (Precision + Recall)
-
-    f1_score+=F1_measure
-    return f1_score
-
-def evaluation_F1_measure(img_predict,img_GT):
-    """
-    Args:
-      img_predict: input 4D tensor [B,C,H,W] C = 2 B = 2
-      target: input 4D tensor [B,C,H,W] C = 2 B = 2
-      class: C: number of categories
-    Reture: F1 score
-    """
-    img_predict = torch.nn.functional.softmax(img_predict,1)
-
-    ## with channel=1 we get the img[B,H,W]
-    img_predict = img_predict[:,1]
-
-    ## we get an array with floats
-    thresholds = np.linspace(0,1,20)
- 
-    f1_score = 0.
-    img_predict = img_predict.cpu().detach().numpy().astype('float32')
-    img_GT = img_GT.cpu().detach().numpy().astype('bool')
-
-    for i in range(img_predict.shape[0]):
-      f1_scores = []
-      for th in thresholds:
-        edge = np.where(img_predict[i]>=th,True,False)
-        f1_scores.append(calculate_f1_score(edge,img_GT[i]))
-      f1_score += sum(f1_scores)/len(thresholds)
-    f1_score = f1_score/img_predict.shape[0]
- 
-    return f1_score
 
 def evaluation_OIS(img_predict,img_GT):
     """
@@ -77,74 +61,18 @@ def evaluation_OIS(img_predict,img_GT):
     thresholds = np.linspace(0, 1, 100)
 
     OIS_th = 0.
-    img_predict = img_predict.cpu().detach().numpy().astype('float32')
-    img_GT = img_GT.cpu().detach().numpy().astype(np.bool)
+    img_predict = img_predict.cpu().detach().numpy().astype(np.float)
+    img_GT = img_GT.cpu().detach().numpy().astype(np.int)
 
     for i in range(img_predict.shape[0]):
-        f1_scores = []
+        f_measure = []
         for th in thresholds:
-            edge = np.where(img_predict[i] >= th, 1, 0).astype(np.bool)
-            f1_scores.append(calculate_f1_score(edge, img_GT[i]))
-        OIS_th += np.max(np.array(f1_scores))
+            edge = np.where(img_predict[i] >= th, 1, 0).astype(np.int)
+            f_measure.append(calculate_f_measure(edge, img_GT[i]))
+        OIS_th += np.max(np.array(f_measure))
     OIS = OIS_th / img_predict.shape[0]
 
     return OIS
-
-
-def calculate_TP_FP_FN(img_predict,gt):
-
-    TP_num_pixels = np.sum(gt & img_predict)
-    FP_num_pixels = np.sum(img_predict & ~gt)
-    FN_num_pixels = np.sum(gt & ~img_predict)
-
-    return TP_num_pixels,FP_num_pixels,FN_num_pixels
-
-def evaluation_ODS(img_predict,img_GT):
-    """
-    Args:
-      img_predict: input 4D tensor [B,C,H,W] C = 2 B = 2
-      target: input 4D tensor [B,C,H,W] C = 2 B = 2
-      class: C: number of categories
-    Reture: F1 score
-    """
-    img_predict = torch.nn.functional.softmax(img_predict, 1)
-
-    ## with channel=1 we get the img[B,H,W]
-    img_predict = img_predict[:, 1]
-
-    ## we get an array with floats
-    thresholds = np.linspace(0, 1, 100)
-
-    f1_score = 0.
-    img_predict = img_predict.cpu().detach().numpy().astype('float32')
-    img_GT = img_GT.cpu().detach().numpy().astype(np.bool)
-    TP=0
-    FP=0
-    FN=0
-
-    for i in range(img_predict.shape[0]):
-        for th in thresholds:
-            edge = np.where(img_predict[i] >= th, 1, 0).astype(np.bool)
-            parameters = calculate_TP_FP_FN(edge,img_GT)
-            TP+=parameters[0]
-            FP+=parameters[1]
-            FN+=parameters[2]
-            
-    if TP+FP==0:
-      Precision = 0.0
-    else:
-      Precision = TP / (TP + FP)
-    if TP+FN==0:
-      Recall = 0.0
-    else:
-      Recall =  TP / (TP + FN)
-
-    if Precision+Recall==0:
-      ODS = 0.0
-    else:
-      ODS = 2* Precision * Recall / (Precision + Recall)
-
-    return ODS
 
 def save_predict_imgs(img_predict,nums):
     """

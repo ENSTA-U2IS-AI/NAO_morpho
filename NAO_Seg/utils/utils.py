@@ -485,6 +485,36 @@ def load_best_model(model_path):
     print('model loaded!')
     return args, model_state_dict, epoch, optimizer_state_dict,best_ois
 
+def save_for_deeplab(model_path, args, model, i_iter, optimizer, is_best=True):
+    if hasattr(model, 'module'):
+        model = model.module
+    state_dict = {
+        'args': args,
+        'model': model.state_dict() if model else {},
+        'i_iter': i_iter,
+        'optimizer': optimizer.state_dict(),
+    }
+    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(iter))
+    torch.save(state_dict, filename)
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    shutil.copyfile(filename, newest_filename)
+    if is_best:
+        best_filename = os.path.join(model_path, 'checkpoint_best.pt')
+        shutil.copyfile(filename, best_filename)
+
+
+def load_for_deeplab(model_path):
+    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    # newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    if not os.path.exists(newest_filename):
+        return None, None, 0,  None
+    state_dict = torch.load(newest_filename)
+    args = state_dict['args']
+    model_state_dict = state_dict['model']
+    i_iter = state_dict['i_iter']
+    optimizer_state_dict = state_dict['optimizer']
+    print('model loaded!')
+    return args, model_state_dict, i_iter, optimizer_state_dict
 
 def create_exp_dir(path, scripts_to_save=None):
     if not os.path.exists(path):

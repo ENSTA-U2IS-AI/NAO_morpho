@@ -23,51 +23,48 @@ def randomCrop(image, label):
     return image, label
 
 class BSD_loader(Dataset):
-    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(512,512),transform=False):
+    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(512,512),transform=False,normalisation=False):
         # first: load imgs form indicated path
         self.root = root
         self.split = split
         self.transform = transform
         self.target_size=target_size
+        self.normalisation=normalisation
         if self.split=='train':
             self.filelist = os.path.join(self.root, 'train_pair.lst')
+        elif self.split  =='val':
+            self.filelist = os.path.join(self.root, 'valid_pair.lst')
+        elif self.split == 'test':
+            self.filelist = os.path.join(self.root, 'test_pair.lst')
             with open(self.filelist, 'r') as f:
                 self.filelist = f.readlines()
-        else:
-            self.imgs = glob.glob(os.path.join(root,'BSR/BSDS500/data/images',split,'*.jpg'))
 
     def __len__(self):
-        if self.split=='train':
-            return len(self.filelist)
-        else:
-            return len(self.imgs)
+        return len(self.filelist)
 
     def __getitem__(self, item):
-        if self.split=='train':
-            img_file, lb_file = self.filelist[item].split()
-            img=cv2.imread(os.path.join(self.root,img_file),cv2.IMREAD_COLOR).astype(np.float32)
-            label= cv2.imread(os.path.join(self.root,lb_file),cv2.IMREAD_GRAYSCALE).astype(np.float32)
-
-        else:
-            img_path = self.imgs[item]
-            label_path = img_path.replace('images','groundTruth')
-            label_path = label_path.replace('jpg','bmp')
-            img = cv2.imread(img_path,cv2.IMREAD_COLOR).astype(np.float32)
-            label = cv2.imread(label_path, cv2.IMREAD_GRAYSCALE).astype(np.float32)
+        img_file, lb_file = self.filelist[item].split()
+        img=cv2.imread(os.path.join(self.root,img_file),cv2.IMREAD_COLOR).astype(np.float32)
+        label= cv2.imread(os.path.join(self.root,lb_file),cv2.IMREAD_GRAYSCALE).astype(np.float32)
 
         img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
         label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_NEAREST)
+
+        if (self.normalisation == True):
+            img = img - np.array((104.00698793,  # Minus statistics.
+                                  116.66876762,
+                                  122.67891434))
+        else:
+            img = img / 255.
+
+        img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
+        img = img.astype(np.float32)  # To float32.
 
         label = label[np.newaxis, :, :]  # Add one channel at first (CHW).
         label[label < 127.5] = 0.0
         label[label >= 127.5] = 1.0
         label = label.astype(np.float32)
-
-        img = img - np.array((104.00698793,  # Minus statistics.
-                              116.66876762,
-                              122.67891434))
-        img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
-        img = img.astype(np.float32)  # To float32.
+        label = np.squeeze(label)
 
         return img.copy(),label.copy()
 
