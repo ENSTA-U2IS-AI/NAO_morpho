@@ -16,7 +16,7 @@ def randomCrop(image, label):
     return image, label
 
 class BSD_loader(Dataset):
-    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(1024,1024),transform=False,normalisation=False):
+    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(256,256),transform=False,normalisation=False):
         # first: load imgs form indicated path
         self.root = root
         self.split = split
@@ -27,14 +27,13 @@ class BSD_loader(Dataset):
         if self.split=='train':
             self.filelist = os.path.join(self.root, 'train_pair.lst')
         elif self.split == 'test':
-            self.filelist = os.path.join(self.bsds_root, 'test.lst')
+            self.filelist = os.path.join(self.root, 'test.lst')
 
         with open(self.filelist, 'r') as f:
             self.filelist = f.readlines()
 
     def __len__(self):
-        if self.split!='test':
-            return len(self.filelist)
+        return len(self.filelist)
 
     def __getitem__(self, item):
         if self.split=='train':
@@ -48,8 +47,8 @@ class BSD_loader(Dataset):
 
             label = label[np.newaxis, :, :]  # Add one channel at first (CHW).
             label[label==0] = 0
-            label[label < 128] = 2
-            label[label >= 128] = 1
+            label[np.logical_and(label>0, label<64)] = 2
+            label[label >= 64] = 1
             label = label.astype(np.float32)    # To float32.
             # label = np.squeeze(label)
 
@@ -63,27 +62,28 @@ class BSD_loader(Dataset):
             img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             img = img.astype(np.float32)        # To float32.
             return img,label
-        else:
-            img_file=self.filelist[item].rstrip()
-            img_original = cv2.imread(os.path.join(self.root, img_file), cv2.IMREAD_COLOR).astype(np.float32)
-            return img_original,img_file
+        # else:
+        #     img_file=self.filelist[item].rstrip()
+        #     print(img_file)
+        #     img_original = cv2.imread(os.path.join(self.root, img_file), cv2.IMREAD_COLOR).astype(np.float32)
+        #     return img_original,img_file
 
 
 
 if __name__=="__main__":
     root = str(os.getcwd().split('/utils')[0]) + "/data/HED-BSDS"
-    bsd__dataset = BSD_loader(root=root,split='test')
-    print(len(bsd__dataset))
-    train_loader = torch.utils.data.DataLoader(dataset=bsd__dataset,
+    bsd_dataset = BSD_loader(root=root,split='train')
+    print(len(bsd_dataset))
+    train_loader = torch.utils.data.DataLoader(dataset=bsd_dataset,
                           batch_size = 2,
                           shuffle=True,pin_memory=True, num_workers=16)
 
-    for i, (input, target) in enumerate(train_loader):
+    for i, (input, _) in enumerate(train_loader):
       # print('i:%d,img size:%s,label size:%s',i,input.size(),target.size())
-      print(target.size())
+      print(_.size())
       print(input.size())
-      print(input.max())
-      print(target.max())
+      # print(input.max())
+      # print(target.max())
       
 
 

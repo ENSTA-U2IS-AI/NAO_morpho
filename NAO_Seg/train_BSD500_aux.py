@@ -22,7 +22,7 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=4)  # 8
+parser.add_argument('--batch_size', type=int, default=1)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
 parser.add_argument('--layers', type=int, default=5)
@@ -121,16 +121,20 @@ def cross_entropy_loss(prediction, label):
     #ref:https://github.com/mayorx/rcf-edge-detection
     label = label.long()
     mask = label.float()
-    num_positive = torch.sum((mask == 1).float()).float()
-    num_negative = torch.sum((mask == 0).float()).float()
+    num_positive = torch.sum((mask == 1.).float()).float()
+    num_negative = torch.sum((mask == 0.).float()).float()
+    print(mask)
 
     mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
     mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
     mask[mask == 2] = 0
 
-    cost = torch.nn.functional.binary_cross_entropy(
-        prediction.float(), label.float(), weight=mask, reduction='none')
-
+    # print('num pos', num_positive)
+    # print('num neg', num_negative)
+    print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
+    cost = torch.nn.functional.binary_cross_entropy_with_logits(
+        prediction.float(), label.float(), weight=mask, reduce=False)
+    # print(torch.sum(cost) / (num_negative + num_positive))
     return torch.sum(cost) / (num_negative + num_positive)
 
 
@@ -226,7 +230,8 @@ def main():
             images = images.cuda().requires_grad_()
             labels = labels.cuda()
 
-            loss = cross_entropy_loss(model(images), labels)
+            out=model(images)
+            loss = cross_entropy_loss(out, labels)
 
             optimizer.zero_grad()
             loss.backward()

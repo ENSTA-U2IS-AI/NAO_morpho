@@ -25,7 +25,7 @@ mkdir -p $OUTPUT_DIR
 # -- mor gradient with sep seed 0
 fixed_arc="0 3 1 3 1 3 0 3 1 3 0 3 1 3 1 1 0 3 2 4 1 8 0 6 2 4 0 5 2 4 3 6 4 6 2 6 4 6 1 8 "
 
-python train_BSD500.py \
+python train_BSD500_aux.py \
   --data=$DATA_DIR \
   --arch="$fixed_arc" \
   --search_space with_mor_ops\
