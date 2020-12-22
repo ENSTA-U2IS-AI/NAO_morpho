@@ -531,8 +531,8 @@ class Pseudo_Shuff_gradient(nn.Module):
         self.padding = kernel_size // 2
         self.degree = degree
         self.stride = stride
-        # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-        self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
+        self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        # self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -564,8 +564,8 @@ class WSPseudo_Shuff_gradient(nn.Module):
         self.padding = kernel_size // 2
         self.degree = degree
         self.stride = stride
-        # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-        self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
+        self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        # self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)

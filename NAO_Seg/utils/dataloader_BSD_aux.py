@@ -36,8 +36,9 @@ class BSD_loader(Dataset):
             self.filelist = os.path.join(self.root, 'valid_pair.lst')
         elif self.split == 'test':
             self.filelist = os.path.join(self.root, 'test_pair.lst')
-            with open(self.filelist, 'r') as f:
-                self.filelist = f.readlines()
+
+        with open(self.filelist, 'r') as f:
+            self.filelist = f.readlines()
 
     def __len__(self):
         return len(self.filelist)
@@ -63,6 +64,9 @@ class BSD_loader(Dataset):
         label = label[np.newaxis, :, :]  # Add one channel at first (CHW).
         label[label < 127.5] = 0.0
         label[label >= 127.5] = 1.0
+        # label[label == 0] = 0
+        # lb[np.logical_and(lb>0, lb<64)] = 2
+        # lb[lb >= 64] = 1
         label = label.astype(np.float32)
         label = np.squeeze(label)
 
@@ -81,8 +85,8 @@ if __name__=="__main__":
       # print('i:%d,img size:%s,label size:%s',i,input.size(),target.size())
       print(target.size())
       print(input.size())
-      print(input.max())
-      print(target.max())
+      # print(input.max())
+      # print(target.max())
       
 
 
