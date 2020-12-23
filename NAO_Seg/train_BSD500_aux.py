@@ -22,7 +22,7 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=1)  # 8
+parser.add_argument('--batch_size', type=int, default=8)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
 parser.add_argument('--layers', type=int, default=5)
@@ -41,7 +41,7 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=1)
 parser.add_argument('--save', type=bool, default=True)
 parser.add_argument('--iterations', type=int, default=20000)
-parser.add_argument('--val_per_iter', type=int, default=100)
+parser.add_argument('--val_per_iter', type=int, default=10000)
 parser.add_argument('--lr_schedule_power', type=float, default=0.9)
 parser.add_argument('--double_down_channel', type=bool, default=True)
 args = parser.parse_args()
@@ -58,14 +58,11 @@ def save_pre_imgs(queue, model, ODS=None):
 
     folder = './results/'
     predict_folder = os.path.join(folder, 'predict')
-    gt_folder = os.path.join(folder, 'groundTruth')
     try:
         os.makedirs(predict_folder)
-        os.makedirs(gt_folder)
         os.makedirs(os.path.join(predict_folder, 'png'))
         os.makedirs(os.path.join(predict_folder, 'mat'))
-        os.makedirs(os.path.join(gt_folder, 'mat'))
-        os.makedirs(os.path.join(gt_folder, 'png'))
+
     except Exception:
         print('dir already exist....')
         pass
@@ -73,21 +70,14 @@ def save_pre_imgs(queue, model, ODS=None):
         model.eval()
 
     with torch.no_grad():
-        for step, (input, target) in enumerate(queue):
+        for step, (input, file_name) in enumerate(queue):
             # print("dsaldhal")
             input = input.cuda()
-            target = target.cuda()
 
             img_predict = model(input)
 
-            # img_predict = torch.nn.functional.softmax(img_predict, 1)
-            # ## with channel=1 we get the img[B,H,W]
-            # img_predict = img_predict[:, 1]
-
             img_predict = img_predict.cpu().detach().numpy().astype('float32')
-            img_GT = target.cpu().detach().numpy().astype('float32')
             img_predict = img_predict.squeeze()
-            img_GT = img_GT.squeeze()
 
             # ---save the image
             if (ODS == None):
@@ -98,16 +88,10 @@ def save_pre_imgs(queue, model, ODS=None):
                 mat_predict = 1 - img_predict
                 img_predict = 255.0 * (1 - img_predict)
             img_predict = Image.fromarray(np.uint8(img_predict))
-            img_predict = img_predict.convert('L')  # single channel
-            img_predict.save(os.path.join(predict_folder, 'png', '{}.png'.format(step)))
-            io.savemat(os.path.join(predict_folder, 'mat', '{}.mat'.format(step)), {'predict': mat_predict})
+            #img_predict = img_predict.convert('L')  # single channel
+            img_predict.save(os.path.join(predict_folder, 'png', '{}.png'.format(file_name[0])))
+            io.savemat(os.path.join(predict_folder, 'mat', '{}.mat'.format(file_name[0])), {'predict': mat_predict})
 
-            mat_gt = img_GT
-            img_GT *= 255.0
-            img_GT = Image.fromarray(np.uint8(img_GT))
-            img_GT = img_GT.convert('L')
-            img_GT.save(os.path.join(gt_folder, 'png', '{}.png'.format(step)))
-            io.savemat(os.path.join(gt_folder, 'mat', '{}.mat'.format(step)), {'gt': mat_gt})
 
     print("save is finished")
 
@@ -123,7 +107,7 @@ def cross_entropy_loss(prediction, label):
     mask = label.float()
     num_positive = torch.sum((mask == 1.).float()).float()
     num_negative = torch.sum((mask == 0.).float()).float()
-    print(mask)
+    #print(mask)
 
     mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
     mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
@@ -131,9 +115,9 @@ def cross_entropy_loss(prediction, label):
 
     # print('num pos', num_positive)
     # print('num neg', num_negative)
-    print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
-    cost = torch.nn.functional.binary_cross_entropy_with_logits(
-        prediction.float(), label.float(), weight=mask, reduce=False)
+    #print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
+    cost = torch.nn.functional.binary_cross_entropy(
+        prediction.float(), label.float(), weight=mask, reduction='none')
     # print(torch.sum(cost) / (num_negative + num_positive))
     return torch.sum(cost) / (num_negative + num_positive)
 
@@ -219,6 +203,9 @@ def main():
     total_iter = args.epochs * each_epoch_iter
     print(total_iter)
     i_iter = start_iteration
+    #root = "./data/HED-BSDS"
+    #test_data = dataloader_BSD_aux.BSD_loader(root=root, split='test',normalisation=False)
+    #test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
     logging.info("=====================start training=====================")
     model.train()
     for epoch in range(args.epochs):
@@ -241,14 +228,14 @@ def main():
             avg_loss += float(loss)
 
             if (i_iter % 100 == 0):
-                logging.info('iter/total_iters [{}/{}] lr %e train_avg_loss %e loss %e'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
+                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
                                                                                                avg_loss / 100, float(loss)))
                 avg_loss = 0
 
-            if (i_iter + 1) % args.val_per_iter == 0:
-                logging.info(' save the current model %d', i_iter + 1)
-                utils.save_model(args.output_dir, args, model, i_iter + 1, optimizer)
-                save_pre_imgs(train_queue, model)
+            if (i_iter % args.val_per_iter == 0):
+                logging.info(' save the current model %d', i_iter)
+                utils.save_model(args.output_dir, args, model, i_iter, optimizer)
+                #save_pre_imgs(test_queue, model)
 
                 # # draw the curve
                 # with open(filename, 'a+')as f:
@@ -260,7 +247,7 @@ def main():
                 # model.train()
 
     root = "./data/HED-BSDS"
-    test_data = dataloader_BSD_aux.BSD_loader(root=root, split='test',normalisation=False)
+    test_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='test')
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
 
     logging.info('loading the best model.')

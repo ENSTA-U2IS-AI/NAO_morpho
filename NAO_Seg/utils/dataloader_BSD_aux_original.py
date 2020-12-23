@@ -62,25 +62,27 @@ class BSD_loader(Dataset):
             img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             img = img.astype(np.float32)        # To float32.
             return img,label
-        # else:
-        #     img_file=self.filelist[item].rstrip()
-        #     print(img_file)
-        #     img_original = cv2.imread(os.path.join(self.root, img_file), cv2.IMREAD_COLOR).astype(np.float32)
-        #     return img_original,img_file
+        else:
+            img_file=self.filelist[item].rstrip()
+            img = cv2.imread(os.path.join(self.root, img_file), cv2.IMREAD_COLOR).astype(np.float32)
+            img_original = np.transpose(img, (2, 0, 1))  # HWC to CHW.
+            fileName=img_file.split('/')[1].split('.')[0]
+            #print(fileName)
+            return img_original,fileName
 
 
 
 if __name__=="__main__":
     root = str(os.getcwd().split('/utils')[0]) + "/data/HED-BSDS"
-    bsd_dataset = BSD_loader(root=root,split='train')
+    bsd_dataset = BSD_loader(root=root,split='test')
     print(len(bsd_dataset))
     train_loader = torch.utils.data.DataLoader(dataset=bsd_dataset,
-                          batch_size = 2,
+                          batch_size = 1,
                           shuffle=True,pin_memory=True, num_workers=16)
 
     for i, (input, _) in enumerate(train_loader):
       # print('i:%d,img size:%s,label size:%s',i,input.size(),target.size())
-      print(_.size())
+      # print(_.size())
       print(input.size())
       # print(input.max())
       # print(target.max())

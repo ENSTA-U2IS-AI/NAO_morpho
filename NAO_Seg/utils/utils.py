@@ -504,7 +504,7 @@ def save_model(model_path, args, model, i_iter, optimizer, is_best=True):
 
 
 def load_model(model_path):
-    newest_filename = os.path.join(model_path, 'checkpoint.pt')
+    newest_filename = os.path.join(model_path, 'checkpoint_best.pt')
     # newest_filename = os.path.join(model_path, 'checkpoint.pt')
     if not os.path.exists(newest_filename):
         return None, None, 0,  None

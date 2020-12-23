@@ -206,6 +206,7 @@ class NASUNetBSD(nn.Module):
         x= F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
         # print(x.size())
         # exit()
+        x=torch.sigmoid(x)
         return x
 
 

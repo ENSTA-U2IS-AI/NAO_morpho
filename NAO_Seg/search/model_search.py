@@ -212,4 +212,5 @@ class NASUNetSegmentationWS(nn.Module):
             x = self.softmax(x)
 
         x = F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
+        x = torch.sigmoid(x)
         return x
