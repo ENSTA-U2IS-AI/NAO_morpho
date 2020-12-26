@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.utils
 import torch.nn.functional as F
 import torchvision.transforms as transforms
-from utils.evaluate import calculate_f1_score
+from utils.evaluate import calculate_f_measure
 import torch.backends.cudnn as cudnn
 from model.model import NASUNetBSD
 from search.model_search import NASUNetSegmentationWS
@@ -101,22 +101,23 @@ class CrossEntropyLabelSmooth(nn.Module):
 
 
 def cross_entropy_loss(prediction, label):
+    #ref:https://github.com/mayorx/rcf-edge-detection
     label = label.long()
     mask = label.float()
-
-    # prediction = torch.nn.functional.softmax(prediction, 1)
-    # ## with channel=1 we get the img[B,H,W]
-    # prediction = prediction[:, 1, :, :].unsqueeze(1)
-
-    num_positive = torch.sum((mask == 1).float()).float()
-    num_negative = torch.sum((mask == 0).float()).float()
+    num_positive = torch.sum((mask == 1.).float()).float()
+    num_negative = torch.sum((mask == 0.).float()).float()
+    #print(mask)
 
     mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
-    mask[mask == 0] = 1.0 * num_positive / (num_positive + num_negative)
+    mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
+    mask[mask == 2] = 0
 
-    cost = torch.nn.functional.binary_cross_entropy_with_logits(
-        prediction.float(), label.float(), weight=mask, reduce=False)
-
+    # print('num pos', num_positive)
+    # print('num neg', num_negative)
+    #print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
+    cost = torch.nn.functional.binary_cross_entropy(
+        prediction.float(), label.float(), weight=mask, reduction='none')
+    # print(torch.sum(cost) / (num_negative + num_positive))
     return torch.sum(cost) / (num_negative + num_positive)
 
 
@@ -147,8 +148,8 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
                                   double_down_channel=args.child_double_down_channel)
     model = model.cuda()
 
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
+    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
+    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     optimizer = torch.optim.SGD(
@@ -162,7 +163,7 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     if optimizer_state_dict is not None:
         optimizer.load_state_dict(optimizer_state_dict)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min, epoch)
-    return train_queue, valid_queue, model, optimizer, scheduler, train_criterion, eval_criterion
+    return train_queue, valid_queue, model, optimizer, scheduler
 
 
 def get_scheduler(optimizer, dataset):
@@ -173,7 +174,7 @@ def get_scheduler(optimizer, dataset):
     return scheduler
 
 
-def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob, criterion):
+def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob, criterion=None):
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
     OIS.reset()
@@ -187,7 +188,10 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
 
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
         img_predict = model(input, arch)
-        loss = criterion(img_predict, target.long())
+        if criterion == None:
+            loss = cross_entropy_loss(img_predict, target)
+        else:
+            loss = cross_entropy_loss(img_predict, target.long())
 
         optimizer.zero_grad()
         loss.backward()
@@ -207,7 +211,7 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
     return OIS.avg, objs.avg, global_step
 
 
-def child_valid(valid_queue, model, arch_pool, criterion):
+def child_valid(valid_queue, model, arch_pool, criterion=None):
     valid_acc_list = []
 
     # set the mode of model to eval
@@ -221,7 +225,10 @@ def child_valid(valid_queue, model, arch_pool, criterion):
             targets = targets.cuda()
 
             img_val_predict = model(inputs, arch, bn_train=True)
-            loss = criterion(img_val_predict, targets.long())
+            if criterion == None:
+                loss = cross_entropy_loss(img_val_predict, targets)
+            else:
+                loss = cross_entropy_loss(img_val_predict, targets.long())
 
             ois_ = evaluate.evaluation_OIS(img_val_predict, targets)
 
@@ -235,8 +242,8 @@ def child_valid(valid_queue, model, arch_pool, criterion):
 def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
     res = []
 
-    train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
-    eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
+    # train_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
+    # eval_criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.065, 0.935])).cuda()
 
     objs = utils.AvgrageMeter()
     OIS = utils.AvgrageMeter()
@@ -269,7 +276,8 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
 
                 # sample an arch to train
                 logits = model(input)
-                loss = train_criterion(logits, target.long())
+                # loss = train_criterion(logits, target.long())
+                loss = cross_entropy_loss(logits, target.long())
 
                 optimizer.zero_grad()
                 global_step += 1
@@ -295,7 +303,8 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 target = target.cuda()
 
                 logits = model(input)
-                loss = eval_criterion(logits, target.long())
+                # loss = eval_criterion(logits, target.long())
+                loss = cross_entropy_loss(logits, target.long())
 
                 ois_ = evaluate.evaluation_OIS(logits, target)
                 n = input.size(0)
@@ -395,7 +404,7 @@ def main():
     cudnn.deterministic = True
 
     if args.dataset == 'BSD500':
-        args.num_class = 2
+        args.num_class = 1
     else:
         args.num_class = None
 
@@ -430,8 +439,8 @@ def main():
 
     # load network model
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, scheduler, train_criterion, eval_criterion = build_fn(ratio=0.9,
-                                                                                                      epoch=-1)
+    train_queue, valid_queue, model, optimizer, scheduler= build_fn(ratio=0.9,
+                                                                   epoch=-1)
 
     # initial NAO algorithm model
     nao = NAO(
@@ -479,13 +488,13 @@ def main():
             logging.info('epoch %d lr %e', epoch, lr)
             # Randomly sample an example to train
             train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool,
-                                                     child_arch_pool_prob, train_criterion)
+                                                     child_arch_pool_prob)
             scheduler.step()
             logging.info('train_OIS %f', train_acc)
 
         logging.info("Evaluate seed archs")
         arch_pool += child_arch_pool
-        arch_pool_valid_acc = child_valid(valid_queue, model, arch_pool, eval_criterion)
+        arch_pool_valid_acc = child_valid(valid_queue, model, arch_pool)
 
         arch_pool_valid_acc_sorted_indices = np.argsort(arch_pool_valid_acc)[::-1]
         arch_pool = [arch_pool[i] for i in arch_pool_valid_acc_sorted_indices]
