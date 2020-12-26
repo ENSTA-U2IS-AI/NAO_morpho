@@ -477,8 +477,11 @@ def generate_arch(n, num_nodes, num_ops=5):
         arch = []
         for i in range(2, num_nodes+2):
             p1 = np.random.randint(0, i)
+            if i==2:
+                p2 = 1 - p1
+            else:
+                p2 = np.random.randint(0, i)
             op1 = np.random.randint(0, num_ops)
-            p2 = np.random.randint(0, i)
             op2 = np.random.randint(0 ,num_ops)
             arch.extend([p1, op1, p2, op2])
         return arch
@@ -574,3 +577,37 @@ def generate_eval_points(eval_epochs, stand_alone_epoch, total_epochs):
         res.append(eval_point)
         eval_point += eval_epochs
     return res
+
+def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
+    n = len(seq)
+
+    def down_cell(cell_seq):
+        p1 = int(cell_seq[4 * 0]) - 1
+        p2 = int(cell_seq[4 * 0 + 2]) - 1
+        if(p1==p2):
+            return False
+        else:
+            return True
+
+    def up_cell(cell_seq):
+        p1 = int(cell_seq[4 * 0]) - 1
+        p2 = int(cell_seq[4 * 0 + 2]) - 1
+        if (p1 == p2):
+            return False
+        else:
+            return True
+
+    down_seq = seq[:n // 2]
+    up_seq = seq[n // 2:]
+    print(down_seq)
+    print(up_seq)
+
+    down_arch = down_cell(down_seq)
+    up_arch = up_cell(up_seq)
+
+    if down_arch and up_arch:
+        print('the new generated arch is valid')
+        return True
+    else:
+        print('the new generated arch is Irregular')
+        return False

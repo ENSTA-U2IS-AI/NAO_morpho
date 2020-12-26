@@ -16,7 +16,7 @@ def randomCrop(image, label):
     return image, label
 
 class BSD_loader(Dataset):
-    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(256,256),transform=False,normalisation=False):
+    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(512,512),transform=False,normalisation=False):
         # first: load imgs form indicated path
         self.root = root
         self.split = split
@@ -67,8 +67,9 @@ class BSD_loader(Dataset):
             img = cv2.imread(os.path.join(self.root, img_file), cv2.IMREAD_COLOR).astype(np.float32)
             img_original = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             fileName=img_file.split('/')[1].split('.')[0]
-            #print(fileName)
-            return img_original,fileName
+            img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+            img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
+            return img,img_original,fileName
 
 
 
@@ -80,7 +81,7 @@ if __name__=="__main__":
                           batch_size = 1,
                           shuffle=True,pin_memory=True, num_workers=16)
 
-    for i, (input, _) in enumerate(train_loader):
+    for i, (input, img_original,_) in enumerate(train_loader):
       # print('i:%d,img size:%s,label size:%s',i,input.size(),target.size())
       # print(_.size())
       print(input.size())

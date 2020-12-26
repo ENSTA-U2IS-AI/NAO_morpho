@@ -564,9 +564,17 @@ def main():
             new_arch = nao_infer(nao_infer_queue, nao, predict_step_size, direction='+')
             for arch in new_arch:
                 if arch not in encoder_input and arch not in new_archs:
-                    new_archs.append(arch)
+                    if (utils.determine_arch_valid(arch, search_space=args.search_space)):
+                        new_archs.append(arch)
+                    else:
+                        continue
                 if len(new_archs) >= args.controller_new_arch:
                     break
+            # for arch in new_arch:
+            #     if arch not in encoder_input and arch not in new_archs:
+            #         new_archs.append(arch)
+            #     if len(new_archs) >= args.controller_new_arch:
+            #         break
             logging.info('%d new archs generated now', len(new_archs))
             if predict_step_size > max_step_size:
                 break

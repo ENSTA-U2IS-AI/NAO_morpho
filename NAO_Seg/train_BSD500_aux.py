@@ -51,7 +51,6 @@ log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format=log_format, datefmt='%m/%d %I:%M:%S %p')
 
-
 def save_pre_imgs(queue, model, ODS=None):
     from PIL import Image
     import scipy.io as io
@@ -70,7 +69,7 @@ def save_pre_imgs(queue, model, ODS=None):
         model.eval()
 
     with torch.no_grad():
-        for step, (input, file_name) in enumerate(queue):
+        for step, (input, img_original,file_name) in enumerate(queue):
             # print("dsaldhal")
             input = input.cuda()
 
@@ -79,18 +78,17 @@ def save_pre_imgs(queue, model, ODS=None):
             img_predict = img_predict.cpu().detach().numpy().astype('float32')
             img_predict = img_predict.squeeze()
 
+            import cv2
+            img_predict = cv2.resize(img_predict, dsize=img_original.size()[2:4][::-1], interpolation=cv2.INTER_LINEAR)
+            io.savemat(os.path.join(predict_folder, 'mat', '{}.mat'.format(file_name[0])), {'result': img_predict})
             # ---save the image
             if (ODS == None):
-                mat_predict = img_predict
                 img_predict *= 255.0
             else:
                 img_predict[img_predict < ODS] = 0
-                mat_predict = 1 - img_predict
                 img_predict = 255.0 * (1 - img_predict)
             img_predict = Image.fromarray(np.uint8(img_predict))
-            #img_predict = img_predict.convert('L')  # single channel
             img_predict.save(os.path.join(predict_folder, 'png', '{}.png'.format(file_name[0])))
-            io.savemat(os.path.join(predict_folder, 'mat', '{}.mat'.format(file_name[0])), {'predict': mat_predict})
 
 
     print("save is finished")
@@ -206,36 +204,36 @@ def main():
     #root = "./data/HED-BSDS"
     #test_data = dataloader_BSD_aux.BSD_loader(root=root, split='test',normalisation=False)
     #test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
-    logging.info("=====================start training=====================")
-    model.train()
-    for epoch in range(args.epochs):
-        avg_loss = 0.
-        for i, (images, labels) in enumerate(train_queue):
-            i_iter += 1
-            adjust_learning_rate(optimizer, i_iter, total_iter)
-
-            images = images.cuda().requires_grad_()
-            labels = labels.cuda()
-
-            out=model(images)
-            loss = cross_entropy_loss(out, labels)
-
-            optimizer.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
-            optimizer.step()
-
-            avg_loss += float(loss)
-
-            if (i_iter % 100 == 0):
-                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
-                                                                                               avg_loss / 100, float(loss)))
-                avg_loss = 0
-
-            if (i_iter % args.val_per_iter == 0):
-                logging.info(' save the current model %d', i_iter)
-                utils.save_model(args.output_dir, args, model, i_iter, optimizer)
-                #save_pre_imgs(test_queue, model)
+    # logging.info("=====================start training=====================")
+    # model.train()
+    # for epoch in range(args.epochs):
+    #     avg_loss = 0.
+    #     for i, (images, labels) in enumerate(train_queue):
+    #         i_iter += 1
+    #         adjust_learning_rate(optimizer, i_iter, total_iter)
+    #
+    #         images = images.cuda().requires_grad_()
+    #         labels = labels.cuda()
+    #
+    #         out=model(images)
+    #         loss = cross_entropy_loss(out, labels)
+    #
+    #         optimizer.zero_grad()
+    #         loss.backward()
+    #         nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
+    #         optimizer.step()
+    #
+    #         avg_loss += float(loss)
+    #
+    #         if (i_iter % 100 == 0):
+    #             logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
+    #                                                                                            avg_loss / 100, float(loss)))
+    #             avg_loss = 0
+    #
+    #         if (i_iter % args.val_per_iter == 0):
+    #             logging.info(' save the current model %d', i_iter)
+    #             utils.save_model(args.output_dir, args, model, i_iter, optimizer)
+    #             #save_pre_imgs(test_queue, model)
 
                 # # draw the curve
                 # with open(filename, 'a+')as f:

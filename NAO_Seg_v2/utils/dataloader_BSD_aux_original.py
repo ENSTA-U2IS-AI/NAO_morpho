@@ -68,7 +68,7 @@ class BSD_loader(Dataset):
             img_original = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             fileName=img_file.split('/')[1].split('.')[0]
             img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-            img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
+            # img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             return img,img_original,fileName
 
 
