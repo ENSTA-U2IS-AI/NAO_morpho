@@ -80,20 +80,16 @@ def save_pre_imgs(queue, model, ODS=None):
             img_predict = img_predict.squeeze()
 
             import cv2
-            img_predict = cv2.resize(img_predict, dsize=img_original.size()[2:4], interpolation=cv2.INTER_LINEAR)
-
+            img_predict = cv2.resize(img_predict, dsize=img_original.size()[2:4][::-1], interpolation=cv2.INTER_LINEAR)
+            io.savemat(os.path.join(predict_folder, 'mat', '{}.mat'.format(file_name[0])), {'result': img_predict})
             # ---save the image
             if (ODS == None):
-                mat_predict = img_predict
                 img_predict *= 255.0
             else:
                 img_predict[img_predict < ODS] = 0
-                mat_predict = 1 - img_predict
                 img_predict = 255.0 * (1 - img_predict)
             img_predict = Image.fromarray(np.uint8(img_predict))
-            #img_predict = img_predict.convert('L')  # single channel
             img_predict.save(os.path.join(predict_folder, 'png', '{}.png'.format(file_name[0])))
-            io.savemat(os.path.join(predict_folder, 'mat', '{}.mat'.format(file_name[0])), {'predict': mat_predict})
 
 
     print("save is finished")
