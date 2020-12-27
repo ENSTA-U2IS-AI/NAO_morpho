@@ -131,7 +131,7 @@ def adjust_learning_rate(optimizer, i_iter, max_iter):
 def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     # epoch = kwargs.pop('epoch')
     # i_iter = kwargs.pop('i_iter')
-    root = "./data/HED-BSDS"
+    root = "./data/"
     
     train_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='train',normalisation=False)
 
@@ -201,35 +201,35 @@ def main():
     #root = "./data/HED-BSDS"
     #test_data = dataloader_BSD_aux.BSD_loader(root=root, split='test',normalisation=False)
     #test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
-    logging.info("=====================start training=====================")
-    model.train()
-    for epoch in range(args.epochs):
-        avg_loss = 0.
-        for i, (images, labels) in enumerate(train_queue):
-            i_iter += 1
-            adjust_learning_rate(optimizer, i_iter, total_iter)
-
-            images = images.cuda().requires_grad_()
-            labels = labels.cuda()
-
-            out=model(images)
-            loss = cross_entropy_loss(out, labels)
-
-            optimizer.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
-            optimizer.step()
-
-            avg_loss += float(loss)
-
-            if (i_iter % 100 == 0):
-                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
-                                                                                               avg_loss / 100, float(loss)))
-                avg_loss = 0
-
-            if (i_iter % args.val_per_iter == 0):
-                logging.info(' save the current model %d', i_iter)
-                utils.save_model(args.output_dir, args, model, i_iter, optimizer)
+#    logging.info("=====================start training=====================")
+#    model.train()
+#    for epoch in range(args.epochs):
+#        avg_loss = 0.
+#        for i, (images, labels) in enumerate(train_queue):
+#            i_iter += 1
+#            adjust_learning_rate(optimizer, i_iter, total_iter)
+#
+#            images = images.cuda().requires_grad_()
+#            labels = labels.cuda()
+#
+#            out=model(images)
+#            loss = cross_entropy_loss(out, labels)
+#
+#            optimizer.zero_grad()
+#            loss.backward()
+#            nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
+#            optimizer.step()
+#
+#            avg_loss += float(loss)
+#
+#            if (i_iter % 100 == 0):
+#                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
+#                                                                                               avg_loss / 100, float(loss)))
+#                avg_loss = 0
+#
+#            if (i_iter % args.val_per_iter == 0):
+#                logging.info(' save the current model %d', i_iter)
+#                utils.save_model(args.output_dir, args, model, i_iter, optimizer)
                 #save_pre_imgs(test_queue, model)
 
                 # # draw the curve

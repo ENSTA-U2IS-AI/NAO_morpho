@@ -730,7 +730,7 @@ class ConvNet(nn.Module):
         if self.transpose:
             self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                            stride=self.stride, padding=padding,
-                                           output_padding=self.out_padding, bias=self.bias)
+                                           output_padding=self.out_padding, bias=True)
 
         else:
             self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
