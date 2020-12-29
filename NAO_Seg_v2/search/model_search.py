@@ -101,7 +101,9 @@ class cellUp(nn.Module):
 
         self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, affine=False,
                                        op_type='pre_ops_cell')
-        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=3, stride=2, affine=False, transpose=True,op_type='ops')
+
+        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=1, stride=1, affine=False, op_type='pre_ops_cell')
+        self.preprocess1_ = ConvNet(channels, channels, kernel_size=3, stride=2, affine=False, transpose=True,op_type='ops')
 
         self._ops = nn.ModuleList()
 
@@ -114,6 +116,7 @@ class cellUp(nn.Module):
     def forward(self, s0, s1, arch, bn_train=False):
         s0 = self.preprocess0(s0)
         s1 = self.preprocess1(s1)
+        s1 = self.preprocess1_(s1)
 
         states = [s0, s1]
         # this mean that every intermediate node if and only if two inputs

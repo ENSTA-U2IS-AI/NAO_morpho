@@ -22,10 +22,10 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=4)  # 8
+parser.add_argument('--batch_size', type=int, default=5)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
-parser.add_argument('--layers', type=int, default=6)#5
+parser.add_argument('--layers', type=int, default=5)#5
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=20)  # 16
 parser.add_argument('--cutout_size', type=int, default=None)
@@ -223,9 +223,9 @@ def main():
 
            avg_loss += float(loss)
 
-           if (i_iter % 100 == 0):
+           if (i_iter % 1000 == 0):
                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
-                                                                                              avg_loss / 100, float(loss)))
+                                                                                              avg_loss / 1000, float(loss)))
                if (i_iter % args.val_per_iter == 0):
                    logging.info(' save the current model %d', i_iter)
                    if avg_loss<valid_loss:

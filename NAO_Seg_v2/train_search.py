@@ -29,10 +29,10 @@ parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--child_batch_size', type=int, default=4)
-parser.add_argument('--child_eval_batch_size', type=int, default=20)
+parser.add_argument('--child_batch_size', type=int, default=20)
+parser.add_argument('--child_eval_batch_size', type=int, default=50)
 parser.add_argument('--child_epochs', type=int, default=50)  # 60
-parser.add_argument('--child_layers', type=int, default=2)
+parser.add_argument('--child_layers', type=int, default=3)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=8)
 parser.add_argument('--child_cutout_size', type=int, default=None)
@@ -50,9 +50,9 @@ parser.add_argument('--child_double_down_channel', type=bool, default=True)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=300)
-parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=100)
+parser.add_argument('--controller_seed_arch', type=int, default=1000)
+parser.add_argument('--controller_expand', type=int, default=10)
+parser.add_argument('--controller_new_arch', type=int, default=300)
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -198,7 +198,7 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         n = input.size(0)
         objs.update(loss.data, n)
         OIS.update(ois_, 1)
-        if (step + 1) % 50 == 0:
+        if (step + 1) % 10 == 0:
             logging.info('Train %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0] + arch[1])))
         global_step += 1
@@ -228,7 +228,7 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             ois_ = evaluate.evaluation_OIS(img_val_predict, targets)
 
             valid_acc_list.append(ois_)
-            if (i + 1) % 5 == 0:
+            if (i + 1) % 2 == 0:
                 logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
 
     return valid_acc_list
@@ -280,7 +280,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 50 == 0:
+                if (step + 1) % 10 == 0:
                     logging.info('Train epoch %03d %03d loss %e OIS %f', e + 1, step + 1, objs.avg, OIS.avg)
 
             scheduler.step()
@@ -303,7 +303,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 5 == 0:
+                if (step + 1) % 2 == 0:
                     logging.info('valid %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
         res.append(OIS.avg)
     return res
@@ -556,8 +556,8 @@ def main():
         new_archs = []
         max_step_size = 50
         predict_step_size = 0
-        top30_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:30]))
-        nao_infer_dataset = utils.NAODataset(top30_archs, None, False)
+        top100_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:100]))
+        nao_infer_dataset = utils.NAODataset(top100_archs, None, False)
         nao_infer_queue = torch.utils.data.DataLoader(
             nao_infer_dataset, batch_size=len(nao_infer_dataset), shuffle=False, pin_memory=True)
         while len(new_archs) < args.controller_new_arch:

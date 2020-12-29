@@ -11,7 +11,7 @@ from imgaug import  augmenters as iaa
 from imgaug import parameters as iap
 
 class BSD_loader(Dataset):
-    def __init__(self,root,split='train',target_size=(512,512),random_crop=False,random_flip=False,ignore_label=0,normalisation=True,keep_size=False,transform=None):
+    def __init__(self,root,split='train',target_size=(128,128),random_crop=False,random_flip=False,ignore_label=0,normalisation=True,keep_size=False,transform=None):
         # first: load imgs form indicated path
         self.root = root
         self.type = type
@@ -29,7 +29,7 @@ class BSD_loader(Dataset):
     def randomCrop(self, image, label):
         f_scale = 0.5 + random.randint(0, 11) / 10.0
         image = cv2.resize(image, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_LINEAR)
-        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_NEAREST)
+        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_LINEAR)
         return image, label
 
     def __getitem__(self, item):
@@ -64,7 +64,7 @@ class BSD_loader(Dataset):
             label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
         elif (self.split != 'test'):
             img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-            label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_NEAREST)
+            label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
         elif (self.split == 'test'):
             if(self.keep_size==True):
                 if (img.shape[0] < img.shape[1]):
@@ -72,7 +72,7 @@ class BSD_loader(Dataset):
                     label = cv2.transpose(label)
             else:
                 img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-                label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_NEAREST)
+                label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
 
         if(self.random_flip):
             flip = np.random.choice(2) * 2 - 1
