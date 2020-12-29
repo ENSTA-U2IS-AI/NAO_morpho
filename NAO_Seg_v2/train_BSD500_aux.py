@@ -22,12 +22,12 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=8)  # 8
+parser.add_argument('--batch_size', type=int, default=4)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
-parser.add_argument('--layers', type=int, default=5)
+parser.add_argument('--layers', type=int, default=6)#5
 parser.add_argument('--nodes', type=int, default=5)
-parser.add_argument('--channels', type=int, default=16)  # 64
+parser.add_argument('--channels', type=int, default=20)  # 16
 parser.add_argument('--cutout_size', type=int, default=None)
 parser.add_argument('--grad_bound', type=float, default=5.0)
 parser.add_argument('--lr_max', type=float, default=1e-2)
@@ -198,38 +198,46 @@ def main():
     total_iter = args.epochs * each_epoch_iter
     print(total_iter)
     i_iter = start_iteration
+    valid_loss=10
     #root = "./data/HED-BSDS"
     #test_data = dataloader_BSD_aux.BSD_loader(root=root, split='test',normalisation=False)
     #test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
-#    logging.info("=====================start training=====================")
-#    model.train()
-#    for epoch in range(args.epochs):
-#        avg_loss = 0.
-#        for i, (images, labels) in enumerate(train_queue):
-#            i_iter += 1
-#            adjust_learning_rate(optimizer, i_iter, total_iter)
-#
-#            images = images.cuda().requires_grad_()
-#            labels = labels.cuda()
-#
-#            out=model(images)
-#            loss = cross_entropy_loss(out, labels)
-#
-#            optimizer.zero_grad()
-#            loss.backward()
-#            nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
-#            optimizer.step()
-#
-#            avg_loss += float(loss)
-#
-#            if (i_iter % 100 == 0):
-#                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
-#                                                                                               avg_loss / 100, float(loss)))
-#                avg_loss = 0
-#
-#            if (i_iter % args.val_per_iter == 0):
-#                logging.info(' save the current model %d', i_iter)
-#                utils.save_model(args.output_dir, args, model, i_iter, optimizer)
+    logging.info("=====================start training=====================")
+    model.train()
+    for epoch in range(args.epochs):
+       avg_loss = 0.
+       for i, (images, labels) in enumerate(train_queue):
+           i_iter += 1
+           adjust_learning_rate(optimizer, i_iter, total_iter)
+
+           images = images.cuda().requires_grad_()
+           labels = labels.cuda()
+
+           out=model(images)
+           loss = cross_entropy_loss(out, labels)
+
+           optimizer.zero_grad()
+           loss.backward()
+           nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
+           optimizer.step()
+
+           avg_loss += float(loss)
+
+           if (i_iter % 100 == 0):
+               logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
+                                                                                              avg_loss / 100, float(loss)))
+               if (i_iter % args.val_per_iter == 0):
+                   logging.info(' save the current model %d', i_iter)
+                   if avg_loss<valid_loss:
+                       is_best=True
+                       valid_loss=avg_loss
+                   else:
+                       is_best=False
+                   utils.save_model(args.output_dir, args, model, i_iter, optimizer,is_best=is_best)
+
+               avg_loss = 0
+
+
                 #save_pre_imgs(test_queue, model)
 
                 # # draw the curve

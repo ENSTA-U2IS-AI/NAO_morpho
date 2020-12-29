@@ -120,7 +120,7 @@ class BSD_loader(Dataset):
         label[label < 127.5] = 0.0
         label[label >= 127.5] = 1.0
         label = label.astype(np.float32)
-        label = np.squeeze(label)
+        # label = np.squeeze(label)
 
         return img.copy(),label.copy()
 

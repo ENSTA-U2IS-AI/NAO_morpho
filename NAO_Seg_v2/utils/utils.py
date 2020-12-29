@@ -416,7 +416,7 @@ def save_checkpoint(state, is_best, save):
         shutil.copyfile(filename, best_filename)
 
 
-def save_model(model_path, args, model, i_iter, optimizer, is_best=True):
+def save_model(model_path, args, model, i_iter, optimizer, is_best=False):
     if hasattr(model, 'module'):
         model = model.module
     state_dict = {
@@ -425,7 +425,7 @@ def save_model(model_path, args, model, i_iter, optimizer, is_best=True):
         'i_iter': i_iter,
         'optimizer': optimizer.state_dict(),
     }
-    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(iter))
+    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(i_iter))
     torch.save(state_dict, filename)
     newest_filename = os.path.join(model_path, 'checkpoint.pt')
     shutil.copyfile(filename, newest_filename)

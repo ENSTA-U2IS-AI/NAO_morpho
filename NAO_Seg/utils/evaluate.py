@@ -52,10 +52,10 @@ def evaluation_OIS(img_predict,img_GT):
       class: C: number of categories
     Reture: F1 score
     """
-    img_predict = torch.nn.functional.softmax(img_predict, 1)
-
-    ## with channel=1 we get the img[B,H,W]
-    img_predict = img_predict[:, 1]
+    # img_predict = torch.nn.functional.softmax(img_predict, 1)
+    #
+    # ## with channel=1 we get the img[B,H,W]
+    # img_predict = img_predict[:, 1]
 
     ## we get an array with floats
     thresholds = np.linspace(0, 1, 100)

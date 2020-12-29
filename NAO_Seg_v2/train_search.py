@@ -258,7 +258,6 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, args.child_lr_min)
         global_step = 0
         for e in range(10):
-            scheduler.step()
             # set the mode of model to train
             model.train()
 
@@ -283,6 +282,9 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
 
                 if (step + 1) % 50 == 0:
                     logging.info('Train epoch %03d %03d loss %e OIS %f', e + 1, step + 1, objs.avg, OIS.avg)
+
+            scheduler.step()
+            
         objs.reset()
         OIS.reset()
         # set the mode of model to eval
