@@ -102,8 +102,8 @@ class cellUp(nn.Module):
         self.preprocess0 = ConvNet(ch_prev_2, channels, kernel_size=1, stride=1, affine=False,
                                        op_type='pre_ops_cell')
 
-        self.preprocess1 = ConvNet(ch_prev, channels, kernel_size=1, stride=1, affine=False, op_type='pre_ops_cell')
-        self.preprocess1_ = ConvNet(channels, channels, kernel_size=3, stride=2, affine=False, transpose=True,op_type='ops')
+        self.preprocess1 = ConvNet(ch_prev, channels*4, kernel_size=1, stride=1, affine=False, op_type='pre_ops_cell')
+        self.preprocess1_ = ConvNet(channels*4, channels, kernel_size=3, stride=2, affine=False, transpose=True,op_type='ops')
 
         self._ops = nn.ModuleList()
 

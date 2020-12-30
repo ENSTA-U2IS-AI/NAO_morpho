@@ -29,8 +29,8 @@ parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--child_batch_size', type=int, default=20)
-parser.add_argument('--child_eval_batch_size', type=int, default=50)
+parser.add_argument('--child_batch_size', type=int, default=5)
+parser.add_argument('--child_eval_batch_size', type=int, default=25)
 parser.add_argument('--child_epochs', type=int, default=50)  # 60
 parser.add_argument('--child_layers', type=int, default=3)
 parser.add_argument('--child_nodes', type=int, default=5)
@@ -198,7 +198,7 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         n = input.size(0)
         objs.update(loss.data, n)
         OIS.update(ois_, 1)
-        if (step + 1) % 10 == 0:
+        if (step + 1) % 40 == 0:
             logging.info('Train %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0] + arch[1])))
         global_step += 1
@@ -228,7 +228,7 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             ois_ = evaluate.evaluation_OIS(img_val_predict, targets)
 
             valid_acc_list.append(ois_)
-            if (i + 1) % 2 == 0:
+            if (i + 1) % 4 == 0:
                 logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
 
     return valid_acc_list
@@ -280,7 +280,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 10 == 0:
+                if (step + 1) % 40 == 0:
                     logging.info('Train epoch %03d %03d loss %e OIS %f', e + 1, step + 1, objs.avg, OIS.avg)
 
             scheduler.step()
@@ -303,7 +303,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 2 == 0:
+                if (step + 1) % 4 == 0:
                     logging.info('valid %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
         res.append(OIS.avg)
     return res

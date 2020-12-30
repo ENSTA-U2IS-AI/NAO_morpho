@@ -11,7 +11,7 @@ from imgaug import  augmenters as iaa
 from imgaug import parameters as iap
 
 class BSD_loader(Dataset):
-    def __init__(self,root,split='train',target_size=(128,128),random_crop=False,random_flip=False,ignore_label=0,normalisation=True,keep_size=False,transform=None):
+    def __init__(self,root,split='train',target_size=(512,512),random_crop=False,random_flip=False,ignore_label=0,normalisation=True,keep_size=False,transform=None):
         # first: load imgs form indicated path
         self.root = root
         self.type = type

@@ -580,8 +580,10 @@ class WSPseudo_Shuff_gradient(nn.Module):
         self.degree = degree
         self.stride = stride
         # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
-        self.convmorph = nn.Conv2d(in_channels, out_channels * kernel_size * kernel_size, kernel_size, stride=1,
-                                   padding=1)
+        # self.convmorph = nn.Conv2d(in_channels, out_channels * kernel_size * kernel_size, kernel_size, stride=1,
+        #                            padding=1)
+        self.w = nn.ParameterList([nn.Parameter(torch.Tensor(out_channels * kernel_size * kernel_size, in_channels, kernel_size, kernel_size)) \
+                                   for _ in range(num_possible_inputs)])
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -594,7 +596,8 @@ class WSPseudo_Shuff_gradient(nn.Module):
         x: tensor of shape (B,C,H,W)
         '''
         x = self.bn(x)
-        y = self.convmorph(x)  # / self.degree
+        # y = self.convmorph(x)  # / self.degree
+        y =  F.conv2d(x,self.w[x_id],stride=1,padding=1)
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
         gradient = y - x
@@ -688,8 +691,10 @@ class WSCWeightNet(nn.Module):
                                                stride=self.stride, padding=padding, output_padding=self.out_padding,
                                                bias=False)
             else:
-                self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
-                                      stride=stride, padding=padding, bias=False)
+                # self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
+                #                       stride=stride, padding=padding, bias=False)
+                self.w = nn.ParameterList([nn.Parameter(torch.Tensor(out_channels, in_channels, kernel_size, kernel_size)) for _ in
+                                           range(num_possible_inputs)])
 
         gp = 1 if out_channels % 8 != 0 else out_channels // 8  # 16
         self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
@@ -698,7 +703,7 @@ class WSCWeightNet(nn.Module):
         b, c, _, _ = x.size()
         y = self.globalPool(x).view(b, c)
         y = self.SEnet(y).view(b, c, 1, 1)
-        SENet = self.norm(self.conv(x * y)) if stride >= 2 else x * y
+        SENet = self.norm(F.conv2d(x * y,self.w[x_id],stride=stride,padding=1)) if stride >= 2 else x * y
         return SENet
 
 
@@ -802,10 +807,14 @@ class WSConvNet(nn.Module):
                                            stride=self.stride, padding=padding,
                                            output_padding=self.out_padding, bias=self.bias)
         else:
-            self.conv_2 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
-                                    stride=2, padding=1)
-            self.conv_1 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
-                                    stride=1, padding=1)
+            # self.conv_2 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
+            #                         stride=2, padding=1)
+            # self.conv_1 = nn.Conv2d(in_channels, out_channels, kernel_size=3,
+            #                         stride=1, padding=1)
+            self.w = nn.ParameterList(
+                            [nn.Parameter(torch.Tensor(out_channels, in_channels, kernel_size, kernel_size))
+                            for _ in range(num_possible_inputs)])
+
         # self.bn = nn.BatchNorm2d(out_channels, affine=False)
         group = 1 if out_channels % 8 != 0 else out_channels // 8
         if norm_type == 'gn':
@@ -823,10 +832,7 @@ class WSConvNet(nn.Module):
             self.dropout = None
 
     def forward(self, x, x_id, stride, bn_train=False):
-        if (stride == 2):
-            x = self.conv_2(x)
-        else:
-            x = self.conv_1(x)
+        x = F.conv2d(x,self.w[x_id],stride=stride,padding=1)
         x = self.norm(x)  # add batchnorm to the input
         x = self.activate(x)
 
