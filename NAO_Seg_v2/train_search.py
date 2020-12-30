@@ -32,17 +32,17 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=5)
 parser.add_argument('--child_eval_batch_size', type=int, default=25)
 parser.add_argument('--child_epochs', type=int, default=50)  # 60
-parser.add_argument('--child_layers', type=int, default=3)
+parser.add_argument('--child_layers', type=int, default=2)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=8)
 parser.add_argument('--child_cutout_size', type=int, default=None)
 parser.add_argument('--child_grad_bound', type=float, default=5.0)
 parser.add_argument('--child_lr_max', type=float, default=0.025)
 parser.add_argument('--child_lr_min', type=float, default=0.001)
-parser.add_argument('--child_keep_prob', type=float, default=0.8)
+parser.add_argument('--child_keep_prob', type=float, default=1)
 parser.add_argument('--child_drop_path_keep_prob', type=float, default=None)
 parser.add_argument('--child_l2_reg', type=float, default=5e-4)
-parser.add_argument('--child_use_aux_head', action='store_true', default=True)
+parser.add_argument('--child_use_aux_head', action='store_true', default=False)
 parser.add_argument('--child_arch_pool', type=str, default=None)
 parser.add_argument('--child_lr', type=float, default=0.1)
 parser.add_argument('--child_double_down_channel', type=bool, default=True)
@@ -182,18 +182,18 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         target = target.cuda()
 
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
-        img_predict = model(input, arch)
+        outs = model(input, arch)
         if criterion==None:
-            loss = cross_entropy_loss(img_predict, target)
+            loss = cross_entropy_loss(outs[-1], target)
         else:
-            loss = cross_entropy_loss(img_predict, target.long())
+            loss = cross_entropy_loss(outs[-1], target.long())
 
         optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
         optimizer.step()
 
-        ois_ = evaluate.evaluation_OIS(img_predict, target)
+        ois_ = evaluate.evaluation_OIS(outs[-1], target)
 
         n = input.size(0)
         objs.update(loss.data, n)
@@ -219,13 +219,13 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             inputs = inputs.cuda()
             targets = targets.cuda()
 
-            img_val_predict = model(inputs, arch, bn_train=True)
+            outs = model(inputs, arch, bn_train=True)
             if criterion == None:
-                loss = cross_entropy_loss(img_val_predict, targets)
+                loss = cross_entropy_loss(outs[-1], targets)
             else:
-                loss = cross_entropy_loss(img_val_predict, targets.long())
+                loss = cross_entropy_loss(outs[-1], targets.long())
 
-            ois_ = evaluate.evaluation_OIS(img_val_predict, targets)
+            ois_ = evaluate.evaluation_OIS(outs[-1], targets)
 
             valid_acc_list.append(ois_)
             if (i + 1) % 4 == 0:
@@ -266,8 +266,8 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 target = target.cuda()
 
                 # sample an arch to train
-                logits = model(input)
-                loss = cross_entropy_loss(logits, target.long())
+                outs = model(input)
+                loss = cross_entropy_loss(outs[-1], target.long())
 
                 optimizer.zero_grad()
                 global_step += 1
@@ -275,7 +275,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
                 optimizer.step()
 
-                ois_ = evaluate.evaluation_OIS(logits, target)
+                ois_ = evaluate.evaluation_OIS(outs[-1], target)
                 n = input.size(0)
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
@@ -295,10 +295,10 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 input = input.cuda()
                 target = target.cuda()
 
-                logits = model(input)
-                loss = cross_entropy_loss(logits, target.long())
+                outs = model(input)
+                loss = cross_entropy_loss(outs[-1], target.long())
 
-                ois_ = evaluate.evaluation_OIS(logits, target)
+                ois_ = evaluate.evaluation_OIS(outs[-1], target)
                 n = input.size(0)
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)

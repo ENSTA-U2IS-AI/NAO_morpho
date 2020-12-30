@@ -112,7 +112,8 @@ class cellUp(nn.Module):
                                    op_type='pre_ops_cell')
         # self.preprocess1 = ConvNet(ch_prev, channels, stride=2, transpose=True, affine=True),  # 'up_conv_3×3'
         self.preprocess1 = ConvNet(ch_prev, channels*4, kernel_size=1, stride=1, affine=True, op_type='pre_ops_cell')
-        self.preprocess1_ = ConvNet(channels*4, channels, kernel_size=3, stride=2, affine=True, transpose=True,op_type='ops')
+        # self.preprocess1_ = ConvNet(channels*4, channels, kernel_size=3, stride=2, affine=True, transpose=True,op_type='ops')
+        self.PS = nn.PixelShuffle(2)
 
 
         stride = 1
@@ -124,7 +125,7 @@ class cellUp(nn.Module):
     def forward(self, s0, s1):
         s0 = self.preprocess0(s0)
         s1 = self.preprocess1(s1)
-        s1 = self.preprocess1_(s1)
+        s1 = self.PS(s1)
 
         states = [s0, s1]
 
@@ -169,6 +170,7 @@ class NASUNetBSD(nn.Module):
         self._stem1 = ConvNet(in_channels, ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
+        self.score_outs = nn.ModuleList()
 
         path_recorder = []
         path_recorder += [ch_prev]
@@ -188,8 +190,10 @@ class NASUNetBSD(nn.Module):
             cell_up = cellUp(self.search_space,self.UpCell_arch,ch_prev_2,ch_prev,ch_curr)
             self.cells_up += [cell_up]
             ch_prev = cell_up._multiplier*ch_curr
+            self.score_outs.append(nn.Conv2d(ch_prev,1,1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
+        self.score_final = nn.Conv2d(5, 1, 1)
         if self.use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d,dropout_rate=1-self.keep_prob,)
         else:
@@ -217,13 +221,21 @@ class NASUNetBSD(nn.Module):
             s0,s1 = s1,cell(s0,s1)
             cells_recorder.append(s1)
 
+        outs = []
+        upsample = nn.UpsamplingBilinear2d([h, w])
         #the right part of U-Net
         for i, cell in enumerate(self.cells_up):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1)
-        
-        x = self.ConvSegmentation(s1)
+            s1_out=self.score_outs[i](s1)
+            outs.append(upsample(s1_out))
 
-        x= F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
-        x=torch.sigmoid(x)
-        return x
+        fuse = torch.cat(outs[:], dim=1)
+        fuse_out = self.score_final(fuse)
+        outs.append(fuse_out)
+        results = [torch.sigmoid(out) for out in outs]
+        # x = self.ConvSegmentation(s1)
+        #
+        # x= F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
+        # x=torch.sigmoid(x)
+        return results

@@ -22,21 +22,21 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=5)  # 8
+parser.add_argument('--batch_size', type=int, default=4)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
-parser.add_argument('--layers', type=int, default=5)#5
+parser.add_argument('--layers', type=int, default=4)#5
 parser.add_argument('--nodes', type=int, default=5)
-parser.add_argument('--channels', type=int, default=20)  # 16
+parser.add_argument('--channels', type=int, default=16)  # 16
 parser.add_argument('--cutout_size', type=int, default=None)
 parser.add_argument('--grad_bound', type=float, default=5.0)
 parser.add_argument('--lr_max', type=float, default=1e-2)
 parser.add_argument('--lr_min', type=float, default=1e-3)
-parser.add_argument('--keep_prob', type=float, default=0.8)
+parser.add_argument('--keep_prob', type=float, default=1)
 parser.add_argument('--drop_path_keep_prob', type=float, default=None)
 parser.add_argument('--l2_reg', type=float, default=5e-4)
 parser.add_argument('--arch', type=str, default=None)
-parser.add_argument('--use_aux_head', action='store_true', default=True)
+parser.add_argument('--use_aux_head', action='store_true', default=False)
 parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=1)
 parser.add_argument('--save', type=bool, default=True)
@@ -213,8 +213,8 @@ def main():
            images = images.cuda().requires_grad_()
            labels = labels.cuda()
 
-           out=model(images)
-           loss = cross_entropy_loss(out, labels)
+           outs=model(images)
+           loss = cross_entropy_loss(outs[-1], labels)
 
            optimizer.zero_grad()
            loss.backward()
@@ -223,19 +223,16 @@ def main():
 
            avg_loss += float(loss)
 
-           if (i_iter % 1000 == 0):
+           if (i_iter % 100 == 0):
                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
-                                                                                              avg_loss / 1000, float(loss)))
-               if (i_iter % args.val_per_iter == 0):
-                   logging.info(' save the current model %d', i_iter)
-                   if avg_loss<valid_loss:
-                       is_best=True
-                       valid_loss=avg_loss
-                   else:
-                       is_best=False
-                   utils.save_model(args.output_dir, args, model, i_iter, optimizer,is_best=is_best)
-
+                                                                                              avg_loss / 100, float(loss)))
                avg_loss = 0
+
+           if (i_iter % args.val_per_iter == 0):
+               logging.info(' save the current model %d', i_iter)
+               utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
+
+    utils.save_model(args.output_dir, args, model, i_iter, optimizer,is_best=False)
 
 
                 #save_pre_imgs(test_queue, model)
