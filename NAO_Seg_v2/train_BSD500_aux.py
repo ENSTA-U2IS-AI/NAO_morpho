@@ -74,9 +74,9 @@ def save_pre_imgs(queue, model, ODS=None):
             # print("dsaldhal")
             input = input.cuda()
 
-            img_predict = model(input)
+            outs = model(input)
 
-            img_predict = img_predict.cpu().detach().numpy().astype('float32')
+            img_predict = outs[-1].cpu().detach().numpy().astype('float32')
             img_predict = img_predict.squeeze()
 
             import cv2

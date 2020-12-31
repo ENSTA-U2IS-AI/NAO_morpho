@@ -155,6 +155,7 @@ class NASUNetBSD(nn.Module):
         self.multiplier = nodes
         self.use_aux_head = use_aux_head
         self.keep_prob=keep_prob
+        self.nclass=nclass
 
         if isinstance(arch, str):
             arch = list(map(int, arch.strip().split()))
@@ -193,7 +194,7 @@ class NASUNetBSD(nn.Module):
             self.score_outs.append(nn.Conv2d(ch_prev,1,1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
-        self.score_final = nn.Conv2d(5, 1, 1)
+        self.score_final = nn.Conv2d(depth+1, self.nclass, 1)
         if self.use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d,dropout_rate=1-self.keep_prob,)
         else:
