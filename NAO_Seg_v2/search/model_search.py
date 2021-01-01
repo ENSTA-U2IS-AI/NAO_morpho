@@ -173,7 +173,7 @@ class NASUNetSegmentationWS(nn.Module):
             self.score_outs.append(nn.Conv2d(ch_prev,1,1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
-        self.score_final = nn.Conv2d(depth+1, self.nclass, 1)
+        self.score_final = nn.Conv2d(depth+1, self.classes, 1)
         if use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d,dropout_rate=1-self.keep_prob)
         else:

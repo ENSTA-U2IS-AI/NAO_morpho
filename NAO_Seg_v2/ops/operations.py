@@ -605,6 +605,37 @@ class WSPseudo_Shuff_gradient(nn.Module):
             gradient = self.pool(gradient)
         return gradient
 
+class WSPseudo_Shuff_gradient_ori(nn.Module):
+    def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, degree=3, stride=1, type=None,
+                 affine=True):
+        super(WSPseudo_Shuff_gradient_ori, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.padding = kernel_size // 2
+        self.degree = degree
+        self.stride = stride
+        # self.convmorph = Depthwise_separable_conv(in_channels, out_channels * kernel_size * kernel_size, kernel_size)
+        self.convmorph = nn.Conv2d(in_channels,out_channels*kernel_size*kernel_size,kernel_size,stride=1,padding=1)
+        self.pixel_shuffle = nn.PixelShuffle(kernel_size)
+        self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
+        self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.bn = nn.BatchNorm2d(out_channels, affine=False)
+        # activate function
+        self.activate = nn.ReLU(inplace=True)
+
+    def forward(self, x, x_id, stride, bn_train=False):
+        '''
+        x: tensor of shape (B,C,H,W)
+        '''
+        x = self.bn(x)
+        y = self.convmorph(x)  # / self.degree
+        y = self.pixel_shuffle(y)
+        y = self.pool_(y)
+        gradient = y-x
+        if stride == 2:
+            gradient = self.pool(gradient)
+        return gradient
 
 # Operation 1
 class CWeightNet(nn.Module):
@@ -922,23 +953,27 @@ UpOps = [
 
 
 OPERATIONS_with_mor = {
-    0: lambda c_in, c_out, stride, affine: CWeightNet(c_in, c_out, stride=stride, affine=affine),  # 'down_cweight_3×3'
-    1: lambda c_in, c_out, stride, affine: ConvNet(c_in, c_out, stride=stride, affine=affine),  # 'down_conv_3×3'
-    2: lambda c_in, c_out, stride, affine: AvgPool(3, stride=stride, padding=1),
-    3: lambda c_in, c_out, stride, affine: MaxPool(3, stride=stride, padding=1),
-    4: lambda c_in, c_out, stride, affine: Identity(c_in, c_out) if stride == 1 else FactorizedReduce(c_in, c_out,
+    0: lambda c_in, c_out, stride, affine: SepConv(c_in, c_out, 3, stride, 1, affine=affine),
+    1: lambda c_in, c_out, stride, affine: SepConv(c_in, c_out, 5, stride, 2, affine=affine),
+    2: lambda c_in, c_out, stride, affine: CWeightNet(c_in, c_out, stride=stride, affine=affine),  # 'down_cweight_3×3'
+    3: lambda c_in, c_out, stride, affine: ConvNet(c_in, c_out, stride=stride, affine=affine),  # 'down_conv_3×3'
+    4: lambda c_in, c_out, stride, affine: AvgPool(3, stride=stride, padding=1),
+    5: lambda c_in, c_out, stride, affine: MaxPool(3, stride=stride, padding=1),
+    6: lambda c_in, c_out, stride, affine: Identity(c_in, c_out) if stride == 1 else FactorizedReduce(c_in, c_out,
                                                                                                       affine=affine),
-    5: lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, kernel_size=3, degree=3, stride=stride),  # dil_shuf_3x3
+    7: lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, kernel_size=3, degree=3, stride=stride),  # dil_shuf_3x3
 
 }
 
 OPERATIONS_search_with_mor = {
-    0: lambda n, c_in, c_out, stride, affine: WSCWeightNet(n, c_in, c_out, stride=stride, affine=affine),# 'down_cweight_3×3'
-    1: lambda n, c_in, c_out, stride, affine: WSConvNet(n, c_in, c_out, stride=stride, affine=affine),# 'down_conv_3×3'
-    2: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
-    3: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
-    4: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride=stride, affine=affine),
-    5: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_gradient(n, c_in, c_out, kernel_size=3, degree=3),  # dil_shuf_3x3
+    0: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 3, 1, affine=affine),
+    1: lambda n, c_in, c_out, stride, affine: WSSepConv(n, c_in, c_out, 5, 2, affine=affine),
+    2: lambda n, c_in, c_out, stride, affine: WSCWeightNet(n, c_in, c_out, stride=stride, affine=affine),# 'down_cweight_3×3'
+    3: lambda n, c_in, c_out, stride, affine: WSConvNet(n, c_in, c_out, stride=stride, affine=affine),# 'down_conv_3×3'
+    4: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
+    5: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
+    6: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride=stride, affine=affine),
+    7: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_gradient_ori(n, c_in, c_out, kernel_size=3, degree=3),  # dil_shuf_3x3
 }
 
 OPERATIONS_without_mor = {

@@ -232,7 +232,7 @@ def main():
                logging.info(' save the current model %d', i_iter)
                utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
 
-    utils.save_model(args.output_dir, args, model, i_iter, optimizer,is_best=False)
+    utils.save_model(args.output_dir, args, model, i_iter, optimizer,is_best=True)
 
 
                 #save_pre_imgs(test_queue, model)
@@ -246,6 +246,7 @@ def main():
                 #
                 # model.train()
 
+    logging.info("=====================start testing=====================")
     root = "./data/HED-BSDS"
     test_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='test')
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
@@ -253,6 +254,7 @@ def main():
     logging.info('loading the best model.')
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_model(output_dir)
+    print('i_iter', start_iteration)
     build_fn = get_builder(args.dataset)
     train_queue, model, optimizer = build_fn(model_state_dict,
                                              optimizer_state_dict,
