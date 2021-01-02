@@ -29,8 +29,8 @@ parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--child_batch_size', type=int, default=5)
-parser.add_argument('--child_eval_batch_size', type=int, default=25)
+parser.add_argument('--child_batch_size', type=int, default=10)
+parser.add_argument('--child_eval_batch_size', type=int, default=50)
 parser.add_argument('--child_epochs', type=int, default=50)  # 60
 parser.add_argument('--child_layers', type=int, default=2)
 parser.add_argument('--child_nodes', type=int, default=5)
@@ -51,7 +51,7 @@ parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
 parser.add_argument('--controller_seed_arch', type=int, default=1000)
-parser.add_argument('--controller_expand', type=int, default=10)
+parser.add_argument('--controller_expand', type=int, default=None)
 parser.add_argument('--controller_new_arch', type=int, default=300)
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
@@ -99,13 +99,14 @@ class CrossEntropyLabelSmooth(nn.Module):
         loss = (-targets * log_probs).mean(0).sum()
         return loss
 
+
 def cross_entropy_loss(prediction, label):
-    #ref:https://github.com/mayorx/rcf-edge-detection
+    # ref:https://github.com/mayorx/rcf-edge-detection
     label = label.long()
     mask = label.float()
     num_positive = torch.sum((mask == 1.).float()).float()
     num_negative = torch.sum((mask == 0.).float()).float()
-    #print(mask)
+    # print(mask)
 
     mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
     mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
@@ -113,15 +114,17 @@ def cross_entropy_loss(prediction, label):
 
     # print('num pos', num_positive)
     # print('num neg', num_negative)
-    #print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
+    # print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
     cost = torch.nn.functional.binary_cross_entropy(
         prediction.float(), label.float(), weight=mask, reduction='none')
     # print(torch.sum(cost) / (num_negative + num_positive))
     return torch.sum(cost) / (num_negative + num_positive)
 
+
 def get_builder(dataset):
     if dataset == 'BSD500':
         return build_BSD_500
+
 
 def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     epoch = kwargs.pop('epoch')
@@ -182,8 +185,8 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         target = target.cuda()
 
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
-        outs = model(input, arch)
-        if criterion==None:
+        outs = model(input, arch, target.size()[2:4])
+        if criterion == None:
             loss = cross_entropy_loss(outs[-1], target)
         else:
             loss = cross_entropy_loss(outs[-1], target.long())
@@ -198,7 +201,7 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         n = input.size(0)
         objs.update(loss.data, n)
         OIS.update(ois_, 1)
-        if (step + 1) % 40 == 0:
+        if (step + 1) % 20 == 0:
             logging.info('Train %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0] + arch[1])))
         global_step += 1
@@ -219,7 +222,7 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             inputs = inputs.cuda()
             targets = targets.cuda()
 
-            outs = model(inputs, arch, bn_train=True)
+            outs = model(inputs, arch, targets.size()[2:4])
             if criterion == None:
                 loss = cross_entropy_loss(outs[-1], targets)
             else:
@@ -228,7 +231,7 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             ois_ = evaluate.evaluation_OIS(outs[-1], targets)
 
             valid_acc_list.append(ois_)
-            if (i + 1) % 4 == 0:
+            if (i + 1) % 2 == 0:
                 logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0] + arch[1])), loss, ois_)
 
     return valid_acc_list
@@ -266,7 +269,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 target = target.cuda()
 
                 # sample an arch to train
-                outs = model(input)
+                outs = model(input, target.size()[2:4])
                 loss = cross_entropy_loss(outs[-1], target.long())
 
                 optimizer.zero_grad()
@@ -280,11 +283,11 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 40 == 0:
+                if (step + 1) % 20 == 0:
                     logging.info('Train epoch %03d %03d loss %e OIS %f', e + 1, step + 1, objs.avg, OIS.avg)
 
             scheduler.step()
-            
+
         objs.reset()
         OIS.reset()
         # set the mode of model to eval
@@ -295,7 +298,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 input = input.cuda()
                 target = target.cuda()
 
-                outs = model(input)
+                outs = model(input, target.size()[2:4])
                 loss = cross_entropy_loss(outs[-1], target.long())
 
                 ois_ = evaluate.evaluation_OIS(outs[-1], target)
@@ -303,7 +306,7 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 4 == 0:
+                if (step + 1) % 2 == 0:
                     logging.info('valid %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
         res.append(OIS.avg)
     return res
@@ -431,8 +434,8 @@ def main():
 
     # load network model
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, scheduler,= build_fn(ratio=0.9,
-                                                                    epoch=-1)
+    train_queue, valid_queue, model, optimizer, scheduler, = build_fn(ratio=0.9,
+                                                                      epoch=-1)
 
     # initial NAO algorithm model
     nao = NAO(
@@ -457,7 +460,8 @@ def main():
 
     if child_arch_pool is None:
         logging.info('Architecture pool is not provided, randomly generating now')
-        child_arch_pool = utils.generate_arch(args.controller_seed_arch, args.child_nodes, args.child_num_ops)  # [[[downc],[upc]]]
+        child_arch_pool = utils.generate_arch(args.controller_seed_arch, args.child_nodes,
+                                              args.child_num_ops)  # [[[downc],[upc]]]
     arch_pool = []
     arch_pool_valid_acc = []
     for i in range(4):
@@ -556,7 +560,8 @@ def main():
         new_archs = []
         max_step_size = 50
         predict_step_size = 0
-        top100_archs = list(map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:100]))
+        top100_archs = list(
+            map(lambda x: utils.parse_arch_to_seq(x[0]) + utils.parse_arch_to_seq(x[1]), arch_pool[:100]))
         nao_infer_dataset = utils.NAODataset(top100_archs, None, False)
         nao_infer_queue = torch.utils.data.DataLoader(
             nao_infer_dataset, batch_size=len(nao_infer_dataset), shuffle=False, pin_memory=True)

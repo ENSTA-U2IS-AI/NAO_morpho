@@ -2,7 +2,7 @@ import sys
 import glob
 import numpy as np
 import torch
-from utils import utils, evaluate,dataloader_BSD_aux_original
+from utils import utils, evaluate, dataloader_BSD_aux_original
 import logging
 import argparse
 import torch.nn as nn
@@ -22,12 +22,12 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=4)  # 8
+parser.add_argument('--batch_size', type=int, default=3)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
-parser.add_argument('--layers', type=int, default=4)#5
+parser.add_argument('--layers', type=int, default=4)  # 5
 parser.add_argument('--nodes', type=int, default=5)
-parser.add_argument('--channels', type=int, default=16)  # 16
+parser.add_argument('--channels', type=int, default=8)  # 16
 parser.add_argument('--cutout_size', type=int, default=None)
 parser.add_argument('--grad_bound', type=float, default=5.0)
 parser.add_argument('--lr_max', type=float, default=1e-2)
@@ -62,6 +62,7 @@ def save_pre_imgs(queue, model, ODS=None):
         os.makedirs(predict_folder)
         os.makedirs(os.path.join(predict_folder, 'png'))
         os.makedirs(os.path.join(predict_folder, 'mat'))
+        os.makedirs(os.path.join(predict_folder, 'all'))
 
     except Exception:
         print('dir already exist....')
@@ -70,17 +71,17 @@ def save_pre_imgs(queue, model, ODS=None):
         model.eval()
 
     with torch.no_grad():
-        for step, (input, img_original,file_name) in enumerate(queue):
-            # print("dsaldhal")
+        for step, (input, img_original, file_name) in enumerate(queue):
+            h,w = img_original.size()[2:]
             input = input.cuda()
 
-            outs = model(input)
+            outs = model(input,(h,w))
 
             img_predict = outs[-1].cpu().detach().numpy().astype('float32')
             img_predict = img_predict.squeeze()
 
             import cv2
-            img_predict = cv2.resize(img_predict, dsize=img_original.size()[2:4][::-1], interpolation=cv2.INTER_LINEAR)
+            # img_predict = cv2.resize(img_predict, dsize=img_original.size()[2:4][::-1], interpolation=cv2.INTER_LINEAR)dsize=(w,h)!
             io.savemat(os.path.join(predict_folder, 'mat', '{}.mat'.format(file_name[0])), {'result': img_predict})
             # ---save the image
             if (ODS == None):
@@ -91,6 +92,12 @@ def save_pre_imgs(queue, model, ODS=None):
             img_predict = Image.fromarray(np.uint8(img_predict))
             img_predict.save(os.path.join(predict_folder, 'png', '{}.png'.format(file_name[0])))
 
+            item = 0
+            for out in outs:
+                item += 1
+                out = out.cpu().detach().numpy().squeeze()
+                out = (out * 255).astype(np.uint8)
+                Image.fromarray(out).save(os.path.join(predict_folder, 'all', '{}-{}.png'.format(file_name[0], item)))
 
     print("save is finished")
 
@@ -101,12 +108,12 @@ def get_builder(dataset):
 
 
 def cross_entropy_loss(prediction, label):
-    #ref:https://github.com/mayorx/rcf-edge-detection
+    # ref:https://github.com/mayorx/rcf-edge-detection
     label = label.long()
     mask = label.float()
     num_positive = torch.sum((mask == 1.).float()).float()
     num_negative = torch.sum((mask == 0.).float()).float()
-    #print(mask)
+    # print(mask)
 
     mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
     mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
@@ -131,17 +138,17 @@ def adjust_learning_rate(optimizer, i_iter, max_iter):
 def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     # epoch = kwargs.pop('epoch')
     # i_iter = kwargs.pop('i_iter')
-    root = "./data/"
-    
-    train_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='train',normalisation=False)
+    root = "./data/HED-BSDS"
+
+    train_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='train', normalisation=False)
 
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batch_size, pin_memory=True, num_workers=16, shuffle=True)
 
     # model = DeepLab(output_stride=16, class_num=2, pretrained=False, freeze_bn=False)
     model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels,
-                       keep_prob=args.keep_prob,nodes=args.nodes,
-                       use_aux_head=args.use_aux_head, arch=args.arch, 
+                       keep_prob=args.keep_prob, nodes=args.nodes,
+                       use_aux_head=args.use_aux_head, arch=args.arch,
                        double_down_channel=args.double_down_channel)
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
@@ -179,7 +186,7 @@ def main():
 
     logging.info("Args = %s", args)
     output_dir = './exp/NAONet_BSD_500/'
-    start_iteration=0
+    start_iteration = 0
     _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_model(output_dir)
     build_fn = get_builder(args.dataset)
     train_queue, model, optimizer = build_fn(model_state_dict,
@@ -198,59 +205,49 @@ def main():
     total_iter = args.epochs * each_epoch_iter
     print(total_iter)
     i_iter = start_iteration
-    valid_loss=10
-    #root = "./data/HED-BSDS"
-    #test_data = dataloader_BSD_aux.BSD_loader(root=root, split='test',normalisation=False)
-    #test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
-    logging.info("=====================start training=====================")
-    model.train()
-    for epoch in range(args.epochs):
-       avg_loss = 0.
-       for i, (images, labels) in enumerate(train_queue):
-           i_iter += 1
-           adjust_learning_rate(optimizer, i_iter, total_iter)
-
-           images = images.cuda().requires_grad_()
-           labels = labels.cuda()
-
-           outs=model(images)
-           loss = cross_entropy_loss(outs[-1], labels)
-
-           optimizer.zero_grad()
-           loss.backward()
-           nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
-           optimizer.step()
-
-           avg_loss += float(loss)
-
-           if (i_iter % 100 == 0):
-               logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter,total_iter,optimizer.param_groups[0]['lr'],
-                                                                                              avg_loss / 100, float(loss)))
-               avg_loss = 0
-
-           if (i_iter % args.val_per_iter == 0):
-               logging.info(' save the current model %d', i_iter)
-               utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
-
-    utils.save_model(args.output_dir, args, model, i_iter, optimizer,is_best=True)
-
-
-                #save_pre_imgs(test_queue, model)
-
-                # # draw the curve
-                # with open(filename, 'a+')as f:
-                #     f.write(str(valid_obj.cpu().numpy()))
-                #     f.write(',')
-                #     f.write(str(valid_OIS))
-                #     f.write('\n')
-                #
-                # model.train()
-
-    logging.info("=====================start testing=====================")
+    valid_loss = 10
     root = "./data/HED-BSDS"
     test_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='test')
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
+    logging.info("=====================start training=====================")
+    model.train()
+    for epoch in range(args.epochs):
+        avg_loss = 0.
+        for i, (images, labels) in enumerate(train_queue):
+            i_iter += 1
+            adjust_learning_rate(optimizer, i_iter, total_iter)
 
+            images = images.cuda().requires_grad_()
+            labels = labels.cuda()
+
+            outs = model(images,labels.size()[2:4])
+            loss = cross_entropy_loss(outs[-1], labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
+            optimizer.step()
+
+            avg_loss += float(loss)
+
+            if (i_iter % 10 == 0):
+                logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter, total_iter,
+                                                                                    optimizer.param_groups[0]['lr'],
+                                                                                    avg_loss / 10, float(loss)))
+                avg_loss = 0
+
+            if (i_iter % args.val_per_iter == 0):
+                logging.info(' save the current model %d', i_iter)
+                utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
+                try:
+                    save_pre_imgs(test_queue, model)
+                    logging.info('save is finished!')
+                except:
+                    logging.info('save is failed!')
+                model.train()
+
+    utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=True)
+    logging.info("=====================start testing=====================")
     logging.info('loading the best model.')
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_model(output_dir)

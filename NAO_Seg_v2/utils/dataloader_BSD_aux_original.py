@@ -16,7 +16,7 @@ def randomCrop(image, label):
     return image, label
 
 class BSD_loader(Dataset):
-    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(512,512),transform=False,normalisation=False):
+    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(1024,1024),transform=False,normalisation=False):
         # first: load imgs form indicated path
         self.root = root
         self.split = split
@@ -25,7 +25,7 @@ class BSD_loader(Dataset):
         self.normalisation=normalisation
 
         if self.split=='train':
-            self.filelist = os.path.join(self.root, 'bsds_pascal_train_pair.lst')
+            self.filelist = os.path.join(self.root, 'train_pair.lst')
         elif self.split == 'test':
             self.filelist = os.path.join(self.root, 'test.lst')
 
@@ -43,7 +43,7 @@ class BSD_loader(Dataset):
 
 
             img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-            label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+            label = cv2.resize(label, dsize=(self.target_size[0]//2,self.target_size[1]//2), interpolation=cv2.INTER_LINEAR)
 
             label = label[np.newaxis, :, :]  # Add one channel at first (CHW).
             label[label==0] = 0

@@ -62,9 +62,11 @@ class BSD_loader(Dataset):
             w_off = random.randint(0, img_w - self.crop_w)
             img = np.asarray(img_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
             label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
+            label = cv2.resize(label, dsize=(self.target_size[0]//2,self.target_size[1]//2),
+                               interpolation=cv2.INTER_LINEAR)
         elif (self.split != 'test'):
             img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-            label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+            label = cv2.resize(label, dsize=(self.target_size[0]//2,self.target_size[1]//2), interpolation=cv2.INTER_LINEAR)
         elif (self.split == 'test'):
             if(self.keep_size==True):
                 if (img.shape[0] < img.shape[1]):
@@ -72,7 +74,7 @@ class BSD_loader(Dataset):
                     label = cv2.transpose(label)
             else:
                 img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-                label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+                label = cv2.resize(label, dsize=(self.target_size[0]//2,self.target_size[1]//2), interpolation=cv2.INTER_LINEAR)
 
         if(self.random_flip):
             flip = np.random.choice(2) * 2 - 1
