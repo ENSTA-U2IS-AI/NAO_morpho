@@ -74,26 +74,16 @@ class BSD_loader(Dataset):
 
 
 if __name__=="__main__":
-    root = str(os.getcwd().split('/utils')[0]) + "/data/HED-BSDS"
-    bsd_dataset = BSD_loader(root=root,split='test')
+    root = str(os.getcwd().split('/utils')[0]) + "/data/"
+    bsd_dataset = BSD_loader(root=root,split='train')
     print(len(bsd_dataset))
     train_loader = torch.utils.data.DataLoader(dataset=bsd_dataset,
                           batch_size = 1,
                           shuffle=True,pin_memory=True, num_workers=16)
 
-    for i, (input, img_original,_) in enumerate(train_loader):
+    for i, (input, _) in enumerate(train_loader):
       # print('i:%d,img size:%s,label size:%s',i,input.size(),target.size())
       # print(_.size())
       print(input.size())
       # print(input.max())
       # print(target.max())
-      
-
-
-
-
-
-
-
-
-

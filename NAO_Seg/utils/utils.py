@@ -494,7 +494,7 @@ def save_model(model_path, args, model, i_iter, optimizer, is_best=True):
         'i_iter': i_iter,
         'optimizer': optimizer.state_dict(),
     }
-    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(iter))
+    filename = os.path.join(model_path, 'checkpoint{}.pt'.format(i_iter))
     torch.save(state_dict, filename)
     newest_filename = os.path.join(model_path, 'checkpoint.pt')
     shutil.copyfile(filename, newest_filename)

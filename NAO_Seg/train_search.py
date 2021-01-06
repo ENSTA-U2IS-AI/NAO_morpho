@@ -29,7 +29,7 @@ parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--child_batch_size', type=int, default=4)
+parser.add_argument('--child_batch_size', type=int, default=5)
 parser.add_argument('--child_eval_batch_size', type=int, default=20)
 parser.add_argument('--child_epochs', type=int, default=50)  # 60
 parser.add_argument('--child_layers', type=int, default=2)
@@ -101,12 +101,12 @@ class CrossEntropyLabelSmooth(nn.Module):
 
 
 def cross_entropy_loss(prediction, label):
-    #ref:https://github.com/mayorx/rcf-edge-detection
+    # ref:https://github.com/mayorx/rcf-edge-detection
     label = label.long()
     mask = label.float()
     num_positive = torch.sum((mask == 1.).float()).float()
     num_negative = torch.sum((mask == 0.).float()).float()
-    #print(mask)
+    # print(mask)
 
     mask[mask == 1] = 1.0 * num_negative / (num_positive + num_negative)
     mask[mask == 0] = 1.1 * num_positive / (num_positive + num_negative)
@@ -114,7 +114,7 @@ def cross_entropy_loss(prediction, label):
 
     # print('num pos', num_positive)
     # print('num neg', num_negative)
-    #print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
+    # print(1.0 * num_negative / (num_positive + num_negative), 1.1 * num_positive / (num_positive + num_negative))
     cost = torch.nn.functional.binary_cross_entropy(
         prediction.float(), label.float(), weight=mask, reduction='none')
     # print(torch.sum(cost) / (num_negative + num_positive))
@@ -187,23 +187,23 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         target = target.cuda()
 
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
-        img_predict = model(input, arch)
+        outs = model(input, arch, target.size()[2:4])
         if criterion == None:
-            loss = cross_entropy_loss(img_predict, target)
+            loss = cross_entropy_loss(outs[-1], target)
         else:
-            loss = cross_entropy_loss(img_predict, target.long())
+            loss = cross_entropy_loss(outs[-1], target.long())
 
         optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
         optimizer.step()
 
-        ois_ = evaluate.evaluation_OIS(img_predict, target)
+        ois_ = evaluate.evaluation_OIS(outs[-1], target)
 
         n = input.size(0)
         objs.update(loss.data, n)
         OIS.update(ois_, 1)
-        if (step + 1) % 50 == 0:
+        if (step + 1) % 40 == 0:
             logging.info('Train %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0] + arch[1])))
         global_step += 1
@@ -224,13 +224,13 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             inputs = inputs.cuda()
             targets = targets.cuda()
 
-            img_val_predict = model(inputs, arch, bn_train=True)
+            outs = model(inputs, arch, targets.size()[2:4])
             if criterion == None:
-                loss = cross_entropy_loss(img_val_predict, targets)
+                loss = cross_entropy_loss(outs[-1], targets)
             else:
-                loss = cross_entropy_loss(img_val_predict, targets.long())
+                loss = cross_entropy_loss(outs[-1], targets.long())
 
-            ois_ = evaluate.evaluation_OIS(img_val_predict, targets)
+            ois_ = evaluate.evaluation_OIS(outs[-1], targets)
 
             valid_acc_list.append(ois_)
             if (i + 1) % 5 == 0:
@@ -275,9 +275,8 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 target = target.cuda()
 
                 # sample an arch to train
-                logits = model(input)
-                # loss = train_criterion(logits, target.long())
-                loss = cross_entropy_loss(logits, target.long())
+                outs = model(input, target.size()[2:4])
+                loss = cross_entropy_loss(outs[-1], target.long())
 
                 optimizer.zero_grad()
                 global_step += 1
@@ -285,12 +284,12 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
                 optimizer.step()
 
-                ois_ = evaluate.evaluation_OIS(logits, target)
+                ois_ = evaluate.evaluation_OIS(outs[-1], target)
                 n = input.size(0)
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)
 
-                if (step + 1) % 50 == 0:
+                if (step + 1) % 40 == 0:
                     logging.info('Train epoch %03d %03d loss %e OIS %f', e + 1, step + 1, objs.avg, OIS.avg)
         objs.reset()
         OIS.reset()
@@ -302,11 +301,10 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 input = input.cuda()
                 target = target.cuda()
 
-                logits = model(input)
-                # loss = eval_criterion(logits, target.long())
-                loss = cross_entropy_loss(logits, target.long())
+                outs = model(input, target.size()[2:4])
+                loss = cross_entropy_loss(outs[-1], target.long())
 
-                ois_ = evaluate.evaluation_OIS(logits, target)
+                ois_ = evaluate.evaluation_OIS(outs[-1], target)
                 n = input.size(0)
                 objs.update(loss.data, n)
                 OIS.update(ois_, n)

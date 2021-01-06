@@ -140,6 +140,8 @@ class NASUNetSegmentationWS(nn.Module):
         self._stem1 = ConvNet(input_chs,ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
+        self.score_outs = nn.ModuleList()
+        self.aux_down_channel = nn.ModuleList()
 
         path_recorder = []
         path_recorder += [ch_prev]
@@ -159,10 +161,13 @@ class NASUNetSegmentationWS(nn.Module):
             cell_up = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,type='up')
             self.cells_up += [cell_up]
             ch_prev = self.multiplier*ch_curr
+            self.aux_down_channel.append(nn.Conv2d(ch_prev, 32, 1))
+            self.score_outs.append(nn.Conv2d(32, 1, 1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
         
         # self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
-
+        self.score_final = nn.Conv2d(depth+1, self.classes, 1)
+        self.relu = nn.ReLU(inplace=True)
         if use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d,dropout_rate=1-self.keep_prob)
         else:
@@ -178,7 +183,7 @@ class NASUNetSegmentationWS(nn.Module):
             if w.data.dim() >= 2:
                 nn.init.kaiming_normal_(w.data)
 
-    def forward(self, input, arch, bn_train=False):
+    def forward(self, input, arch, size, bn_train=False):
         # s0: [4c,h,w]
         # s1: [4c,0.5g,0.5w]
         _,_,h,w = input.size()
@@ -194,23 +199,21 @@ class NASUNetSegmentationWS(nn.Module):
         for i, cell in enumerate(self.cells_down):
             s0,s1 = s1,cell(s0,s1,DownCell_arch,bn_train=bn_train)
             cells_recorder.append(s1)
-            
-        
+
+        outs = []
+        upsample = nn.UpsamplingBilinear2d(size)
         #the right part of U-Net
         for i,cell in enumerate(self.cells_up):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1,UpCell_arch,bn_train=bn_train)
+            aux = self.relu(self.aux_down_channel[i](s1))
+            s1_out = self.score_outs[i](aux)
+            outs.append(upsample(s1_out))
+
+        fuse = torch.cat(outs[:], dim=1)
+        fuse_out = self.score_final(fuse)
+        outs.append(fuse_out)
+        results = [torch.sigmoid(out) for out in outs]
      
-        # exit()
-        if self.use_aux_head:
-          x = self.ConvSegmentation(s1)
-          x = interpolate(x, (h,w))
-        else:
-          x = self.ConvSegmentation(s1)
 
-        if self.use_softmax_head:
-            x = self.softmax(x)
-
-        x = F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
-        x = torch.sigmoid(x)
-        return x
+        return results

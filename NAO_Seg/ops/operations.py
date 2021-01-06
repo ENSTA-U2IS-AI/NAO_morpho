@@ -636,8 +636,8 @@ class CWeightNet(nn.Module):
         return SENet
 
 class WSCWeightNet(nn.Module):
-    def __init__(self,num_possible_inputs,in_channels, out_channels, kernel_size=3, stride=1,dilation=1, groups=None,
-                 bias=False, transpose=False,out_padding=1, use_norm=False, affine=True, dropout_rate=0):
+    def __init__(self, num_possible_inputs, in_channels, out_channels, kernel_size=3, stride=1, dilation=1, groups=None,
+                 bias=False, transpose=False, out_padding=1, use_norm=False, affine=True, dropout_rate=0):
         super(WSCWeightNet, self).__init__()
 
         self.kernel_size = kernel_size
@@ -648,41 +648,41 @@ class WSCWeightNet(nn.Module):
         self.transpose = transpose
         self.out_padding = out_padding
 
-        padding = self.kernel_size//2
+        padding = self.kernel_size // 2
 
-        if isinstance(padding,int):
+        if isinstance(padding, int):
             padding *= self.dilation
         else:
             padding[0] *= self.dilation
             padding[1] *= self.dilation
 
         self.globalPool = nn.AdaptiveAvgPool2d(1)
-        #Squeeze-and-Excitation Networks
+        # Squeeze-and-Excitation Networks
         self.SEnet = nn.Sequential(
-            nn.Linear(in_channels, in_channels // 8),#16
+            nn.Linear(in_channels, in_channels // 8),  # 16
             nn.ReLU(inplace=True),
             nn.Linear(in_channels // 8, out_channels),
             nn.Sigmoid()
         )
-        if (self.stride >=2):
+        if (self.stride >= 2):
             if self.transpose:
                 self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=self.kernel_size,
                                                stride=self.stride, padding=padding, output_padding=self.out_padding,
-                                                bias=False)
-                # self.conv = nn.Sequential(nn.Conv2d(in_channels,out_channels*2*2,kernel_size,stride=1,padding=1),
-                #           nn.PixelShuffle(2))
+                                               bias=False)
             else:
-                self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
-                                      stride=stride, padding=padding, bias=False)
+                # self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
+                #                       stride=stride, padding=padding, bias=False)
+                self.w = nn.ParameterList([nn.Parameter(torch.Tensor(out_channels, in_channels, kernel_size, kernel_size)) for _ in
+                                           range(num_possible_inputs)])
 
-        gp = 1 if out_channels%8 !=0 else out_channels//8    #16
+        gp = 1 if out_channels % 8 != 0 else out_channels // 8  # 16
         self.norm = nn.GroupNorm(gp, out_channels, affine=affine)
 
     def forward(self, x, x_id, stride, bn_train=False):
         b, c, _, _ = x.size()
         y = self.globalPool(x).view(b, c)
         y = self.SEnet(y).view(b, c, 1, 1)
-        SENet = self.norm(self.conv(x * y)) if self.stride >= 2 else x * y
+        SENet = self.norm(F.conv2d(x * y,self.w[x_id],stride=stride,padding=1)) if stride >= 2 else x * y
         return SENet
 
 #Operation 2
@@ -783,9 +783,13 @@ class WSConvNet(nn.Module):
                                            stride=self.stride, padding=padding,
                                            output_padding=self.out_padding, bias=self.bias)
         else:
-            self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
-                                  stride=self.stride, padding=padding,
-                                  dilation=self.dilation, bias=False)
+            # self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=self.kernel_size,
+            #                       stride=self.stride, padding=padding,
+            #                       dilation=self.dilation, bias=False)
+            self.w = nn.ParameterList(
+                [nn.Parameter(torch.Tensor(out_channels, in_channels, kernel_size, kernel_size))
+                 for _ in range(num_possible_inputs)])
+
         # self.bn = nn.BatchNorm2d(out_channels, affine=False)
         group = 1 if out_channels % 8 != 0 else out_channels // 8
         if norm_type == 'gn':
@@ -804,10 +808,12 @@ class WSConvNet(nn.Module):
             self.dropout = None
 
     def forward(self, x, x_id, stride, bn_train=False):
-        if self.op_type=='ops':
-          x = self.conv(x)
-          x = self.norm(x)# add batchnorm to the input
-          x = self.activate(x)
+        if self.transpose==True:
+          x= self.conv(x)
+        else:
+          x = F.conv2d(x, self.w[x_id], stride=stride, padding=1)
+        x = self.norm(x)# add batchnorm to the input
+        x = self.activate(x)
 
         return x
 

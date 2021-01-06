@@ -130,7 +130,7 @@ class BSD_loader(Dataset):
 if __name__=="__main__":
     data_path = str(os.getcwd().split('/utils')[0])+"/data/BSR/BSDS500/data/"
     print(data_path)
-    bsd__dataset = BSD_loader(root=data_path,split='train',random_crop=False,random_flip=False,transform=True)
+    bsd__dataset = BSD_loader(root=data_path,split='test',random_crop=False,random_flip=False,transform=True)
     print(len(bsd__dataset))
     train_loader = torch.utils.data.DataLoader(dataset=bsd__dataset,
                           batch_size = 1,

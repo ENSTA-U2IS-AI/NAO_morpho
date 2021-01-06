@@ -121,6 +121,7 @@ class NASUNetBSD(nn.Module):
         self.use_aux_head = use_aux_head
         self.use_softmax_head = use_softmax_head
         self.keep_prob=keep_prob
+        self.nclass=nclass
 
         if isinstance(arch, str):
             arch = list(map(int, arch.strip().split()))
@@ -138,6 +139,8 @@ class NASUNetBSD(nn.Module):
         self._stem1 = ConvNet(in_channels, ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
+        self.score_outs = nn.ModuleList()
+        self.aux_down_channel = nn.ModuleList()
 
         path_recorder = []
         path_recorder += [ch_prev]
@@ -157,10 +160,14 @@ class NASUNetBSD(nn.Module):
             cell_up = CellSegmentation(self.search_space,self.UpCell_arch,ch_prev_2,ch_prev,ch_curr,type='up')
             self.cells_up += [cell_up]
             ch_prev = cell_up._multiplier*ch_curr
+            self.aux_down_channel.append(nn.Conv2d(ch_prev, 32, 1))
+            self.score_outs.append(nn.Conv2d(32, 1, 1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
         # self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
 
+        self.score_final = nn.Conv2d(depth+1, self.nclass, 1)
+        self.relu = nn.ReLU(inplace=True)
         if self.use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d,dropout_rate=1-self.keep_prob,)
         else:
@@ -176,7 +183,7 @@ class NASUNetBSD(nn.Module):
             if w.data.dim() >= 2:
                 nn.init.kaiming_normal_(w.data)
 
-    def forward(self, input):
+    def forward(self, input,size):
         """bchw for tensor"""
         _,_,h,w = input.size()
         # s0: remain the original image size
@@ -193,40 +200,19 @@ class NASUNetBSD(nn.Module):
             s0,s1 = s1,cell(s0,s1)
             cells_recorder.append(s1)
 
+        outs = []
+        upsample = nn.UpsamplingBilinear2d(size)
         #the right part of U-Net
         for i, cell in enumerate(self.cells_up):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1)
-        
-        x = self.ConvSegmentation(s1)
-          
-        if self.use_softmax_head:
-          x = self.softmax(x)
-        
-        x= F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
-        # print(x.size())
-        # exit()
-        x=torch.sigmoid(x)
-        return x
+            aux = self.relu(self.aux_down_channel[i](s1))
+            s1_out = self.score_outs[i](aux)
+            outs.append(upsample(s1_out))
 
+        fuse = torch.cat(outs[:], dim=1)
+        fuse_out = self.score_final(fuse)
+        outs.append(fuse_out)
+        results = [torch.sigmoid(out) for out in outs]
 
-if __name__ == '__main__':
-    batch_size = 8
-    img_height = 400
-    img_width = 400
-
-    # device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = "cpu"
-    input = torch.rand(batch_size, 3, img_height, img_width).to(device)
-    # target = torch.rand(batch_size, 1, img_height, img_width).to(device)
-    print(f"input shape: {input.shape}")
-    model = NASUNetBSD().to(device)
-    output = model(input)
-    print(output.size())
-    # print(f"output shapes: {[t.shape for t in output]}")
-
-    # for i in range(20000):
-    #     print(i)
-    #     output = model(input)
-    #     loss = nn.MSELoss()(output[-1], target)
-    #     loss.backward()
+        return results
