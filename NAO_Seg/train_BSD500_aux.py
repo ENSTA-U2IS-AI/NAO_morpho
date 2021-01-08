@@ -22,10 +22,10 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=5)  # 8
+parser.add_argument('--batch_size', type=int, default=2)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
-parser.add_argument('--epochs', type=int, default=30)
-parser.add_argument('--layers', type=int, default=6)  # 5
+parser.add_argument('--epochs', type=int, default=20)
+parser.add_argument('--layers', type=int, default=7)  # 5
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=8)  # 16
 parser.add_argument('--cutout_size', type=int, default=None)
@@ -41,7 +41,7 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=1)
 parser.add_argument('--save', type=bool, default=True)
 parser.add_argument('--iterations', type=int, default=20000)
-parser.add_argument('--val_per_iter', type=int, default=10000)
+parser.add_argument('--val_per_iter', type=int, default=100)
 parser.add_argument('--lr_schedule_power', type=float, default=0.9)
 parser.add_argument('--double_down_channel', type=bool, default=True)
 args = parser.parse_args()
@@ -225,19 +225,25 @@ def main():
             labels = labels.cuda()
 
             outs = model(images,labels.size()[2:4])
-            loss = cross_entropy_loss(outs[-1], labels)
+            #last layer
+            # loss = cross_entropy_loss(outs[-1], labels)
+            #all layers
+            total_loss = 0
+            for out in outs:	        
+              loss = cross_entropy_loss(out, labels)	       
+              total_loss += loss	       
 
             optimizer.zero_grad()
-            loss.backward()
+            total_loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
             optimizer.step()
 
-            avg_loss += float(loss)
+            avg_loss += float(total_loss)
 
             if (i_iter % 10 == 0):
                 logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter, total_iter,
                                                                                     optimizer.param_groups[0]['lr'],
-                                                                                    avg_loss / 10, float(loss)))
+                                                                                    avg_loss / 10, float(total_loss)))
                 avg_loss = 0
 
             if (i_iter % args.val_per_iter == 0):
