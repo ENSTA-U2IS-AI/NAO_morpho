@@ -155,18 +155,18 @@ class NASUNetBSD(nn.Module):
             path_recorder +=[ch_prev]
 
         # this is the right part of U-Net (decoder) up sampling
-        for i in range(depth+1):
+        for i in range(depth-1):
             ch_prev_2 = path_recorder[-(i+2)]
             cell_up = CellSegmentation(self.search_space,self.UpCell_arch,ch_prev_2,ch_prev,ch_curr,type='up')
             self.cells_up += [cell_up]
             ch_prev = cell_up._multiplier*ch_curr
-            self.aux_down_channel.append(nn.Conv2d(ch_prev, 32, 1))
-            self.score_outs.append(nn.Conv2d(32, 1, 1))
+            self.aux_down_channel.append(nn.Conv2d(ch_prev, 21, 1))
+            self.score_outs.append(nn.Conv2d(21, 1, 1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
         # self.ConvSegmentation = ConvNet(ch_prev, nclass, kernel_size=1, dropout_rate=0.1, op_type='SC')
 
-        self.score_final = nn.Conv2d(depth+1, self.nclass, 1)
+        self.score_final = nn.Conv2d(depth-1, self.nclass, 1)
         self.relu = nn.ReLU(inplace=True)
         if self.use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d,dropout_rate=1-self.keep_prob,)
@@ -206,6 +206,7 @@ class NASUNetBSD(nn.Module):
         for i, cell in enumerate(self.cells_up):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1)
+            # print(s1.size())
             aux = self.relu(self.aux_down_channel[i](s1))
             s1_out = self.score_outs[i](aux)
             outs.append(upsample(s1_out))

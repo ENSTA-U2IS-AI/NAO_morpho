@@ -24,7 +24,7 @@ parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--batch_size', type=int, default=5)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
-parser.add_argument('--epochs', type=int, default=5)
+parser.add_argument('--epochs', type=int, default=30)
 parser.add_argument('--layers', type=int, default=6)  # 5
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=8)  # 16
@@ -41,7 +41,7 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=1)
 parser.add_argument('--save', type=bool, default=True)
 parser.add_argument('--iterations', type=int, default=20000)
-parser.add_argument('--val_per_iter', type=int, default=1000)
+parser.add_argument('--val_per_iter', type=int, default=10000)
 parser.add_argument('--lr_schedule_power', type=float, default=0.9)
 parser.add_argument('--double_down_channel', type=bool, default=True)
 args = parser.parse_args()
