@@ -161,12 +161,12 @@ class NASUNetSegmentationWS(nn.Module):
             cell_up = CellSegmentation(self.search_space,ch_prev_2,ch_prev,self.nodes,ch_curr,type='up')
             self.cells_up += [cell_up]
             ch_prev = self.multiplier*ch_curr
-            self.aux_down_channel.append(nn.Conv2d(ch_prev, 32, 1))
-            self.score_outs.append(nn.Conv2d(32, 1, 1))
+            self.aux_down_channel.append(nn.Conv2d(ch_prev, 42, 1))
+            self.score_outs.append(nn.Conv2d(42, 1, 1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
         
         # self.ConvSegmentation = ConvNet(ch_prev, self.classes, kernel_size=1, dropout_rate=0.1)
-        self.score_final = nn.Conv2d(depth+1, self.classes, 1)
+        self.score_final = nn.Conv2d(depth-1, self.classes, 1)
         self.relu = nn.ReLU(inplace=True)
         if use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, self.classes, nn.BatchNorm2d,dropout_rate=1-self.keep_prob)

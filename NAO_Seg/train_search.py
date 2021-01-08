@@ -32,7 +32,7 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--child_batch_size', type=int, default=5)
 parser.add_argument('--child_eval_batch_size', type=int, default=20)
 parser.add_argument('--child_epochs', type=int, default=50)  # 60
-parser.add_argument('--child_layers', type=int, default=2)
+parser.add_argument('--child_layers', type=int, default=3)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=8)
 parser.add_argument('--child_cutout_size', type=int, default=None)
@@ -191,7 +191,11 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         if criterion == None:
             loss = cross_entropy_loss(outs[-1], target)
         else:
-            loss = cross_entropy_loss(outs[-1], target.long())
+            # loss = cross_entropy_loss(outs[-1], target.long())
+            loss = 0
+            for out in outs:
+                loss_ = cross_entropy_loss(out, target.long())
+                loss += loss_
 
         optimizer.zero_grad()
         loss.backward()
@@ -228,7 +232,11 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             if criterion == None:
                 loss = cross_entropy_loss(outs[-1], targets)
             else:
-                loss = cross_entropy_loss(outs[-1], targets.long())
+                # loss = cross_entropy_loss(outs[-1], targets.long())
+                loss = 0
+                for out in outs:
+                    loss_ = cross_entropy_loss(out, targets.long())
+                    loss += loss_
 
             ois_ = evaluate.evaluation_OIS(outs[-1], targets)
 
@@ -276,7 +284,11 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
 
                 # sample an arch to train
                 outs = model(input, target.size()[2:4])
-                loss = cross_entropy_loss(outs[-1], target.long())
+                # loss = cross_entropy_loss(outs[-1], target.long())
+                loss = 0
+                for out in outs:
+                    loss_ = cross_entropy_loss(out, target.long())
+                    loss += loss_
 
                 optimizer.zero_grad()
                 global_step += 1
@@ -302,7 +314,11 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 target = target.cuda()
 
                 outs = model(input, target.size()[2:4])
-                loss = cross_entropy_loss(outs[-1], target.long())
+                # loss = cross_entropy_loss(outs[-1], target.long())
+                loss = 0
+                for out in outs:
+                    loss_ = cross_entropy_loss(out, target.long())
+                    loss += loss_
 
                 ois_ = evaluate.evaluation_OIS(outs[-1], target)
                 n = input.size(0)
