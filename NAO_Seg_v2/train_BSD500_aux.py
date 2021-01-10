@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.utils
 import torch.backends.cudnn as cudnn
 from model.model import NASUNetBSD
-from model.deeplab_v3.decoder import DeepLab
+from model.decorder import NAOMSCBC
 import os
 
 parser = argparse.ArgumentParser()
@@ -25,7 +25,7 @@ parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=
 parser.add_argument('--batch_size', type=int, default=3)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
-parser.add_argument('--layers', type=int, default=4)  # 5
+parser.add_argument('--layers', type=int, default=1)  # 5
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=8)  # 16
 parser.add_argument('--cutout_size', type=int, default=None)
@@ -43,7 +43,7 @@ parser.add_argument('--save', type=bool, default=True)
 parser.add_argument('--iterations', type=int, default=20000)
 parser.add_argument('--val_per_iter', type=int, default=10000)
 parser.add_argument('--lr_schedule_power', type=float, default=0.9)
-parser.add_argument('--double_down_channel', type=bool, default=True)
+parser.add_argument('--double_down_channel', type=bool, default=False)
 args = parser.parse_args()
 
 utils.create_exp_dir(args.output_dir, scripts_to_save=glob.glob('*.py'))
@@ -146,10 +146,11 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
         train_data, batch_size=args.batch_size, pin_memory=True, num_workers=16, shuffle=True)
 
     # model = DeepLab(output_stride=16, class_num=2, pretrained=False, freeze_bn=False)
-    model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels,
-                       keep_prob=args.keep_prob, nodes=args.nodes,
-                       use_aux_head=args.use_aux_head, arch=args.arch,
-                       double_down_channel=args.double_down_channel)
+    # model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels,
+    #                    keep_prob=args.keep_prob, nodes=args.nodes,
+    #                    use_aux_head=args.use_aux_head, arch=args.arch,
+    #                    double_down_channel=args.double_down_channel)
+    model = NAOMSCBC(args,args.classes,args.arch,channels=42,pretrained=True,res='101')
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
     if model_state_dict is not None:

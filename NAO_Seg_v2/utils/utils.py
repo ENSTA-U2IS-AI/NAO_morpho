@@ -12,9 +12,10 @@ import torch
 import torch.nn as nn
 import torch.utils.data as data
 import torchvision.transforms as transforms
+
 # from autoaugment import CIFAR10Policy
 
-B=5
+B = 5
 
 
 def item(tensor):
@@ -39,7 +40,7 @@ class AvgrageMeter(object):
         self.sum += val * n
         self.cnt += n
         self.avg = self.sum / self.cnt
-      
+
 
 def accuracy(output, target, topk=(1,)):
     maxk = max(topk)
@@ -52,7 +53,7 @@ def accuracy(output, target, topk=(1,)):
     res = []
     for k in topk:
         correct_k = correct[:k].view(-1).float().sum(0)
-        res.append(correct_k.mul_(100.0/batch_size))
+        res.append(correct_k.mul_(100.0 / batch_size))
     return res
 
 
@@ -103,7 +104,7 @@ def _data_transforms_cifar10(cutout_size, autoaugment=False):
     valid_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-        ])
+    ])
     return train_transform, valid_transform
 
 
@@ -127,7 +128,7 @@ class ReadImageThread(threading.Thread):
         self.fnames = fnames
         self.class_id = class_id
         self.target_list = target_list
-        
+
     def run(self):
         for fname in self.fnames:
             if has_file_allowed_extension(fname, IMG_EXTENSIONS):
@@ -167,7 +168,7 @@ class InMemoryDataset(data.Dataset):
                     num_per_worker = num_files // num_workers
                     for i in range(num_workers):
                         start_index = num_per_worker * i
-                        end_index = num_files if i == num_workers - 1 else num_per_worker * (i+1)
+                        end_index = num_files if i == num_workers - 1 else num_per_worker * (i + 1)
                         thread = ReadImageThread(root, fnames[start_index:end_index], class_to_idx[target], res[i])
                         threads.append(thread)
                     for thread in threads:
@@ -178,17 +179,17 @@ class InMemoryDataset(data.Dataset):
                         self.samples += item
                     del res, threads
                     gc.collect()
-        
+
     def __len__(self):
         return len(self.samples)
-    
+
     def __getitem__(self, index):
         sample, target = self.samples[index]
         sample = convert_to_pil(sample)
         if self.transform is not None:
             sample = self.transform(sample)
         return sample, target
-    
+
     def __repr__(self):
         fmt_str = 'Dataset ' + self.__class__.__name__ + '\n'
         fmt_str += '    Number of datapoints: {}\n'.format(self.__len__())
@@ -205,7 +206,7 @@ class InMemoryDataset(data.Dataset):
         classes.sort()
         class_to_idx = {classes[i]: i for i in range(len(classes))}
         return classes, class_to_idx
-    
+
 
 class ZipDataset(data.Dataset):
     def __init__(self, path, transform=None):
@@ -222,10 +223,10 @@ class ZipDataset(data.Dataset):
             target = self.get_target(fname)
             item = (fname, class_to_idx[target])
             self.samples.append(item)
-    
+
     def __len__(self):
         return len(self.samples)
-    
+
     def __getitem__(self, index):
         sample, target = self.samples[index]
         with zipfile.ZipFile(self.path, 'r') as reader:
@@ -234,7 +235,7 @@ class ZipDataset(data.Dataset):
         if self.transform is not None:
             sample = self.transform(sample)
         return sample, target
-    
+
     def __repr__(self):
         fmt_str = 'Dataset ' + self.__class__.__name__ + '\n'
         fmt_str += '    Number of datapoints: {}\n'.format(self.__len__())
@@ -244,18 +245,18 @@ class ZipDataset(data.Dataset):
         tmp = '    Target Transforms (if any): '
         fmt_str += '{0}{1}'.format(tmp, self.target_transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
         return fmt_str
-    
+
     @staticmethod
     def is_directory(fname):
         if fname.startswith('n') and fname.endswith('/'):
             return True
         return False
-    
+
     @staticmethod
     def get_target(fname):
         assert fname.startswith('n')
         return fname.split('/')[0]
-    
+
     @staticmethod
     def find_classes(reader):
         classes = [ZipDataset.get_target(name) for name in reader.namelist() if ZipDataset.is_directory(name)]
@@ -271,7 +272,7 @@ class ReadZipImageThread(threading.Thread):
         self.fnames = fnames
         self.target_list = target_list
         self.class_to_idx = class_to_idx
-    
+
     def run(self):
         for fname in self.fnames:
             if InMemoryZipDataset.is_directory(fname):
@@ -306,7 +307,7 @@ class InMemoryZipDataset(data.Dataset):
             num_per_worker = num_files // num_workers
             for i in range(num_workers):
                 start_index = num_per_worker * i
-                end_index = num_files if i == num_workers - 1 else (i+1) * num_per_worker
+                end_index = num_files if i == num_workers - 1 else (i + 1) * num_per_worker
                 thread = ReadZipImageThread(reader, fnames[start_index:end_index], class_to_idx, res[i])
                 threads.append(thread)
             for thread in threads:
@@ -318,17 +319,17 @@ class InMemoryZipDataset(data.Dataset):
             del res, threads
             gc.collect()
         reader.close()
-            
+
     def __len__(self):
         return len(self.samples)
-    
+
     def __getitem__(self, index):
         sample, target = self.samples[index]
         sample = convert_to_pil(sample)
         if self.transform is not None:
             sample = self.transform(sample)
         return sample, target
-    
+
     def __repr__(self):
         fmt_str = 'Dataset ' + self.__class__.__name__ + '\n'
         fmt_str += '    Number of datapoints: {}\n'.format(self.__len__())
@@ -338,13 +339,13 @@ class InMemoryZipDataset(data.Dataset):
         tmp = '    Target Transforms (if any): '
         fmt_str += '{0}{1}'.format(tmp, self.target_transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
         return fmt_str
-    
+
     @staticmethod
     def is_directory(fname):
         if fname.startswith('n') and fname.endswith('/'):
             return True
         return False
-    
+
     @staticmethod
     def get_target(fname):
         assert fname.startswith('n')
@@ -369,7 +370,7 @@ class NAODataset(torch.utils.data.Dataset):
         self.sos_id = sos_id
         self.eos_id = eos_id
         self.swap = swap
-    
+
     def __getitem__(self, index):
         encoder_input = self.inputs[index]
         encoder_target = None
@@ -398,14 +399,13 @@ class NAODataset(torch.utils.data.Dataset):
             if encoder_target is not None:
                 sample['encoder_target'] = torch.FloatTensor(encoder_target)
         return sample
-    
+
     def __len__(self):
         return len(self.inputs)
 
 
-
 def count_parameters_in_MB(model):
-    return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
+    return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name) / 1e6
 
 
 def save_checkpoint(state, is_best, save):
@@ -438,7 +438,7 @@ def load_model(model_path):
     newest_filename = os.path.join(model_path, 'checkpoint_best.pt')
     # newest_filename = os.path.join(model_path, 'checkpoint.pt')
     if not os.path.exists(newest_filename):
-        return None, None, 0,  None
+        return None, None, 0, None
     state_dict = torch.load(newest_filename)
     args = state_dict['args']
     model_state_dict = state_dict['model']
@@ -446,6 +446,7 @@ def load_model(model_path):
     optimizer_state_dict = state_dict['optimizer']
     print('model loaded!')
     return args, model_state_dict, i_iter, optimizer_state_dict
+
 
 def create_exp_dir(path, scripts_to_save=None):
     if not os.path.exists(path):
@@ -475,17 +476,33 @@ def sample_arch(arch_pool, prob=None):
 def generate_arch(n, num_nodes, num_ops=5):
     def _get_arch():
         arch = []
-        for i in range(2, num_nodes+2):
+        for i in range(2, num_nodes + 2):
             p1 = np.random.randint(0, i)
-            if i==2:
+            if i == 2:
                 p2 = 1 - p1
             else:
                 p2 = np.random.randint(0, i)
             op1 = np.random.randint(0, num_ops)
-            op2 = np.random.randint(0 ,num_ops)
+            op2 = np.random.randint(0, num_ops)
             arch.extend([p1, op1, p2, op2])
         return arch
-    archs = [[_get_arch(), _get_arch()] for i in range(n)] #[[[conv],[reduc]]]
+
+    archs = [[_get_arch(), _get_arch()] for i in range(n)]  # [[[conv],[reduc]]]
+    return archs
+
+
+def generate_arch_for_ResNetDecoder(n, num_nodes, num_ops=7):
+    def _get_arch():
+        arch = []
+        for i in range(2, num_nodes + 2):
+            p1 = np.random.randint(0, i)
+            op1 = np.random.randint(0, num_ops)
+            p2 = np.random.randint(0, i)
+            op2 = np.random.randint(0, num_ops)
+            arch.extend([p1, op1, p2, op2])
+        return arch
+
+    archs = [[_get_arch(), _get_arch()] for i in range(n)]  # [[[conv],[reduc]]]
     return archs
 
 
@@ -495,36 +512,37 @@ def build_dag(arch):
     # assume arch is the format [idex, op ...] where index is in [0, 5] and op in [0, 10]
     arch = list(map(int, arch.strip().split()))
     length = len(arch)
-    conv_dag = arch[:length//2]
-    reduc_dag = arch[length//2:]
+    conv_dag = arch[:length // 2]
+    reduc_dag = arch[length // 2:]
     return conv_dag, reduc_dag
 
 
 def parse_arch_to_seq(cell, nodes=B):
     seq = []
     for i in range(nodes):
-        prev_node1 = cell[4*i] + 1
-        prev_node2 = cell[4*i+2] + 1
-        op1 = cell[4*i+1] + 7
-        op2 = cell[4*i+3] + 7
+        prev_node1 = cell[4 * i] + 1
+        prev_node2 = cell[4 * i + 2] + 1
+        op1 = cell[4 * i + 1] + 7
+        op2 = cell[4 * i + 3] + 7
         seq.extend([prev_node1, op1, prev_node2, op2])
     return seq
 
 
 def parse_seq_to_arch(seq, nodes=B):
     n = len(seq)
-    
+
     def _parse_cell(cell_seq):
         cell_arch = []
         for i in range(nodes):
-            p1 = cell_seq[4*i] - 1
-            op1 = cell_seq[4*i+1] - 7
-            p2 = cell_seq[4*i+2] - 1
-            op2 = cell_seq[4*i+3] - 7
+            p1 = cell_seq[4 * i] - 1
+            op1 = cell_seq[4 * i + 1] - 7
+            p2 = cell_seq[4 * i + 2] - 1
+            op2 = cell_seq[4 * i + 3] - 7
             cell_arch.extend([p1, op1, p2, op2])
         return cell_arch
-    conv_seq = seq[:n//2]
-    reduc_seq = seq[n//2:]
+
+    conv_seq = seq[:n // 2]
+    reduc_seq = seq[n // 2:]
     conv_arch = _parse_cell(conv_seq)
     reduc_arch = _parse_cell(reduc_seq)
     arch = [conv_arch, reduc_arch]
@@ -537,7 +555,7 @@ def pairwise_accuracy(la, lb):
     total = 0
     count = 0
     for i in range(n):
-        for j in range(i+1, n):
+        for j in range(i + 1, n):
             if la[i] >= la[j] and lb[i] >= lb[j]:
                 count += 1
             if la[i] < la[j] and lb[i] < lb[j]:
@@ -549,7 +567,7 @@ def pairwise_accuracy(la, lb):
 def hamming_distance(la, lb):
     N = len(la)
     assert N == len(lb)
-  
+
     def _hamming_distance(s1, s2):
         n = len(s1)
         assert n == len(s2)
@@ -558,7 +576,7 @@ def hamming_distance(la, lb):
             if i != j:
                 c += 1
         return c
-  
+
     dis = 0
     for i in range(N):
         line1 = la[i]
@@ -578,13 +596,14 @@ def generate_eval_points(eval_epochs, stand_alone_epoch, total_epochs):
         eval_point += eval_epochs
     return res
 
+
 def determine_arch_valid(seq, nodes=B, search_space='with_mor_ops'):
     n = len(seq)
 
     def down_cell(cell_seq):
         p1 = int(cell_seq[4 * 0]) - 1
         p2 = int(cell_seq[4 * 0 + 2]) - 1
-        if(p1==p2):
+        if (p1 == p2):
             return False
         else:
             return True

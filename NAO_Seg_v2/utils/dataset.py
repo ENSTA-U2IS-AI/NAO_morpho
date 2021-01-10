@@ -11,7 +11,7 @@ from imgaug import  augmenters as iaa
 from imgaug import parameters as iap
 
 class BSD_loader(Dataset):
-    def __init__(self,root,split='train',target_size=(512,512),random_crop=False,random_flip=False,ignore_label=0,normalisation=True,keep_size=False,transform=None):
+    def __init__(self,root,split='train',target_size=(1024,1024),random_crop=False,random_flip=False,ignore_label=0,normalisation=True,keep_size=False,transform=None):
         # first: load imgs form indicated path
         self.root = root
         self.type = type
@@ -29,7 +29,7 @@ class BSD_loader(Dataset):
     def randomCrop(self, image, label):
         f_scale = 0.5 + random.randint(0, 11) / 10.0
         image = cv2.resize(image, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_LINEAR)
-        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_LINEAR)
+        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_NEAREST)
         return image, label
 
     def __getitem__(self, item):
@@ -62,11 +62,9 @@ class BSD_loader(Dataset):
             w_off = random.randint(0, img_w - self.crop_w)
             img = np.asarray(img_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
             label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
-            label = cv2.resize(label, dsize=(self.target_size[0]//2,self.target_size[1]//2),
-                               interpolation=cv2.INTER_LINEAR)
         elif (self.split != 'test'):
             img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-            label = cv2.resize(label, dsize=(self.target_size[0]//2,self.target_size[1]//2), interpolation=cv2.INTER_LINEAR)
+            label = cv2.resize(label, dsize=(256,256), interpolation=cv2.INTER_NEAREST)
         elif (self.split == 'test'):
             if(self.keep_size==True):
                 if (img.shape[0] < img.shape[1]):
@@ -74,7 +72,7 @@ class BSD_loader(Dataset):
                     label = cv2.transpose(label)
             else:
                 img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-                label = cv2.resize(label, dsize=(self.target_size[0]//2,self.target_size[1]//2), interpolation=cv2.INTER_LINEAR)
+                label = cv2.resize(label, dsize=(256,256), interpolation=cv2.INTER_NEAREST)
 
         if(self.random_flip):
             flip = np.random.choice(2) * 2 - 1
@@ -132,7 +130,7 @@ class BSD_loader(Dataset):
 if __name__=="__main__":
     data_path = str(os.getcwd().split('/utils')[0])+"/data/BSR/BSDS500/data/"
     print(data_path)
-    bsd__dataset = BSD_loader(root=data_path,split='val',random_crop=False,random_flip=False,transform=True)
+    bsd__dataset = BSD_loader(root=data_path,split='test',random_crop=False,random_flip=False,transform=True)
     print(len(bsd__dataset))
     train_loader = torch.utils.data.DataLoader(dataset=bsd__dataset,
                           batch_size = 1,
