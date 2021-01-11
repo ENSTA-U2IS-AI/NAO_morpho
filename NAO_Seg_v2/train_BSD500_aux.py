@@ -222,7 +222,12 @@ def main():
             labels = labels.cuda()
 
             outs = model(images,labels.size()[2:4])
-            loss = cross_entropy_loss(outs[-1], labels)
+            # loss = cross_entropy_loss(outs[-1], labels)
+            # all layers
+            loss = 0
+            for out in outs:
+                loss_ = cross_entropy_loss(out, labels)
+                loss += loss_
 
             optimizer.zero_grad()
             loss.backward()
