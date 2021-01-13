@@ -133,12 +133,12 @@ class WSReLUConvBN(nn.Module):
         self.bn = nn.BatchNorm2d(C_out, affine=True)
 
     def forward(self, x, x_id, bn_train=False):
-        x = self.relu(x)
         w = torch.cat([self.w[i] for i in x_id], dim=1)
         x = F.conv2d(x, w, stride=self.stride, padding=self.padding)
         if bn_train:
             self.bn.train()
         x = self.bn(x)
+        x = self.relu(x)
         return x
 
 
@@ -183,14 +183,15 @@ class SepConv(nn.Module):
     def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
         super(SepConv, self).__init__()
         self.op = nn.Sequential(
-            nn.ReLU(inplace=INPLACE),
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=stride, padding=padding, groups=C_in, bias=False),
             nn.Conv2d(C_in, C_in, kernel_size=1, padding=0, bias=False),
             nn.BatchNorm2d(C_in, affine=affine),
             nn.ReLU(inplace=INPLACE),
+
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=1, padding=padding, groups=C_in, bias=False),
             nn.Conv2d(C_in, C_out, kernel_size=1, padding=0, bias=False),
             nn.BatchNorm2d(C_out, affine=affine),
+            nn.ReLU(inplace=INPLACE),
         )
 
     def forward(self, x):
@@ -220,15 +221,17 @@ class WSSepConv(nn.Module):
         self.bn2 = WSBN(num_possible_inputs, C_in, affine=affine)
 
     def forward(self, x, x_id, stride=1, bn_train=False):
-        x = self.relu1(x)
+
         x = F.conv2d(x, self.W1_depthwise[x_id], stride=stride, padding=self.padding, groups=self.C_in)
         x = F.conv2d(x, self.W1_pointwise[x_id], padding=0)
         x = self.bn1(x, x_id, bn_train=bn_train)
+        x = self.relu1(x)
 
-        x = self.relu2(x)
+
         x = F.conv2d(x, self.W2_depthwise[x_id], padding=self.padding, groups=self.C_in)
         x = F.conv2d(x, self.W2_pointwise[x_id], padding=0)
         x = self.bn2(x, x_id, bn_train=bn_train)
+        x = self.relu2(x)
         return x
 
 
@@ -486,17 +489,20 @@ class Pseudo_Shuff_dilation(nn.Module):
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.bn = nn.BatchNorm2d(out_channels, affine=False)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         '''
         x: tensor of shape (B,C,H,W)
         '''
-        x = self.bn(x)
         y = self.convmorph(x)  # / self.degree
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
         if self.stride == 2:
             y = self.pool(y)
+
+        y = self.bn(y)
+        y = self.relu(y)
         return y
 
 
@@ -515,18 +521,21 @@ class WSPseudo_Shuff_dilation(nn.Module):
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.bn = nn.BatchNorm2d(out_channels, affine=True)
+        self.relu = nn.ReLU(inplace=INPLACE)
 
     def forward(self, x, x_id, stride, bn_train=False):
         '''
         x: tensor of shape (B,C,H,W)
         '''
-        x = self.bn(x)
         y = self.convmorph(x)  # / self.degree
         # y = F.conv2d(x, self.w, stride=self.stride, padding=self.padding)
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
         if stride == 2:
             y = self.pool(y)
+
+        y = self.bn(y)
+        y = self.relu(y)
         return y
 
 class Pseudo_Shuff_gradient(nn.Module):
@@ -546,19 +555,21 @@ class Pseudo_Shuff_gradient(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.bn = nn.BatchNorm2d(out_channels, affine=True)
         # activate function
-        self.activate = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         '''
         x: tensor of shape (B,C,H,W)
         '''
-        x = self.bn(x)
         y = self.convmorph(x)  # / self.degree
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
         gradient = y - x
         if self.stride == 2:
             gradient = self.pool(gradient)
+
+        y = self.bn(y)
+        y = self.relu(y)
         return gradient
 
 
@@ -582,13 +593,12 @@ class WSPseudo_Shuff_gradient(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.bn = nn.BatchNorm2d(out_channels, affine=False)
         # activate function
-        self.activate = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=INPLACE)
 
     def forward(self, x, x_id, stride, bn_train=False):
         '''
         x: tensor of shape (B,C,H,W)
         '''
-        x = self.bn(x)
         # y = self.convmorph(x)  # / self.degree
         y =  F.conv2d(x,self.w[x_id],stride=1,padding=1)
         y = self.pixel_shuffle(y)
@@ -596,6 +606,9 @@ class WSPseudo_Shuff_gradient(nn.Module):
         gradient = y - x
         if stride == 2:
             gradient = self.pool(gradient)
+
+        y = self.bn(y)
+        y = self.relu(y)
         return gradient
 
 class WSPseudo_Shuff_gradient_ori(nn.Module):
@@ -615,19 +628,21 @@ class WSPseudo_Shuff_gradient_ori(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.bn = nn.BatchNorm2d(out_channels, affine=False)
         # activate function
-        self.activate = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=INPLACE)
 
     def forward(self, x, x_id, stride, bn_train=False):
         '''
         x: tensor of shape (B,C,H,W)
         '''
-        x = self.bn(x)
         y = self.convmorph(x)  # / self.degree
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
         gradient = y-x
         if stride == 2:
             gradient = self.pool(gradient)
+
+        y = self.bn(y)
+        y = self.relu(y)
         return gradient
 
 # Operation 1
@@ -774,7 +789,7 @@ class ConvNet(nn.Module):
             self.norm = nn.BatchNorm2d(out_channels, affine=affine)
 
         # activate function
-        self.activate = nn.ReLU(inplace=True)
+        self.activate = nn.ReLU(inplace=False)
         self.activate2 = nn.ReLU(inplace=False)
 
         # dropout
@@ -847,7 +862,7 @@ class WSConvNet(nn.Module):
             self.norm = nn.BatchNorm2d(out_channels, affine=affine)
 
         # activate function
-        self.activate = nn.ReLU(inplace=True)
+        self.activate = nn.ReLU(inplace=False)
 
         # dropout
         if self.dropout_rate > 0:
@@ -953,7 +968,7 @@ OPERATIONS_with_mor = {
     4: lambda c_in, c_out, stride, affine: MaxPool(3, stride=stride, padding=1),
     5: lambda c_in, c_out, stride, affine: Identity(c_in, c_out) if stride == 1 else FactorizedReduce(c_in, c_out,
                                                                                                      affine=affine),
-    6: lambda c_in, c_out, stride, affine: Pseudo_Shuff_dilation(c_in, c_out, kernel_size=3, degree=3, stride=stride),  # dil_shuf_3x3
+    6: lambda c_in, c_out, stride, affine: Pseudo_Shuff_gradient(c_in, c_out, kernel_size=3, degree=3, stride=stride),  # dil_shuf_3x3
 
 }
 
@@ -964,7 +979,7 @@ OPERATIONS_search_with_mor = {
     3: lambda n, c_in, c_out, stride, affine: WSAvgPool2d(3, padding=1),
     4: lambda n, c_in, c_out, stride, affine: WSMaxPool2d(3, padding=1),
     5: lambda n, c_in, c_out, stride, affine: WSIdentity(c_in, c_out, stride=stride, affine=affine),
-    6: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_dilation(n, c_in, c_out, kernel_size=3, degree=3),  # dil_shuf_3x3
+    6: lambda n, c_in, c_out, stride, affine: WSPseudo_Shuff_gradient(n, c_in, c_out, kernel_size=3, degree=3),  # dil_shuf_3x3
 }
 
 OPERATIONS_without_mor = {

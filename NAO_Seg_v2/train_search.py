@@ -176,8 +176,8 @@ def get_scheduler(optimizer, dataset):
 
 def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob, criterion=None):
     objs = utils.AvgrageMeter()
-    OIS = utils.AvgrageMeter()
-    OIS.reset()
+    ODS = utils.AvgrageMeter()
+    ODS.reset()
 
     # set the mode of model to train
     model.train()
@@ -201,17 +201,17 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
         optimizer.step()
 
-        ois_ = evaluate.evaluation_OIS(outs[-1], target)
+        ods_ = evaluate.evaluation_ODS(outs[-1], target)
 
         n = input.size(0)
         objs.update(loss.data, n)
-        OIS.update(ois_, 1)
+        ODS.update(ods_, 1)
         if (step + 1) % 100 == 0:
-            logging.info('Train %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
+            logging.info('Train %03d loss %e ODS %f ', step + 1, objs.avg, ODS.avg)
             logging.info('Arch: %s', ' '.join(map(str, arch[0])))
         global_step += 1
 
-    return OIS.avg, objs.avg, global_step
+    return ODS.avg, objs.avg, global_step
 
 
 def child_valid(valid_queue, model, arch_pool, criterion=None):
@@ -236,11 +236,11 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
                     loss_ = cross_entropy_loss(out, targets.long())
                     loss += loss_
 
-            ois_ = evaluate.evaluation_OIS(outs[-1], targets)
+            ods_ = evaluate.evaluation_ODS(outs[-1], targets)
 
-            valid_acc_list.append(ois_)
+            valid_acc_list.append(ods_)
             if (i + 1) % 50 == 0:
-                logging.info('Valid arch %s\n loss %.2f OIS %f', ' '.join(map(str, arch[0])), loss, ois_)
+                logging.info('Valid arch %s\n loss %.2f ODS %f', ' '.join(map(str, arch[0])), loss, ods_)
 
     return valid_acc_list
 
@@ -249,10 +249,10 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
     res = []
 
     objs = utils.AvgrageMeter()
-    OIS = utils.AvgrageMeter()
+    ODS = utils.AvgrageMeter()
     for i, arch in enumerate(archs):
         objs.reset()
-        OIS.reset()
+        ODS.reset()
         logging.info('Train and evaluate the {} arch'.format(i + 1))
         # model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels,
         #                    keep_prob=args.child_keep_prob, nodes=args.child_nodes,
@@ -290,18 +290,18 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 nn.utils.clip_grad_norm_(model.parameters(), args.child_grad_bound)
                 optimizer.step()
 
-                ois_ = evaluate.evaluation_OIS(outs[-1], target)
+                ods_ = evaluate.evaluation_ODS(outs[-1], target)
                 n = input.size(0)
                 objs.update(loss.data, n)
-                OIS.update(ois_, n)
+                ODS.update(ods_, n)
 
                 if (step + 1) % 100 == 0:
-                    logging.info('Train epoch %03d %03d loss %e OIS %f', e + 1, step + 1, objs.avg, OIS.avg)
+                    logging.info('Train epoch %03d %03d loss %e ODS %f', e + 1, step + 1, objs.avg, ODS.avg)
 
             scheduler.step()
 
         objs.reset()
-        OIS.reset()
+        ODS.reset()
         # set the mode of model to eval
         model.eval()
 
@@ -316,14 +316,14 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                     loss_ = cross_entropy_loss(out, target.long())
                     loss += loss_
 
-                ois_ = evaluate.evaluation_OIS(outs[-1], target)
+                ods_ = evaluate.evaluation_ODS(outs[-1], target)
                 n = input.size(0)
                 objs.update(loss.data, n)
-                OIS.update(ois_, n)
+                ODS.update(ods_, n)
 
                 if (step + 1) % 10 == 0:
-                    logging.info('valid %03d loss %e OIS %f ', step + 1, objs.avg, OIS.avg)
-        res.append(OIS.avg)
+                    logging.info('valid %03d loss %e ODS %f ', step + 1, objs.avg, ODS.avg)
+        res.append(ODS.avg)
     return res
 
 
@@ -502,7 +502,7 @@ def main():
             train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool,
                                                      child_arch_pool_prob)
             scheduler.step()
-            logging.info('train_OIS %f', train_acc)
+            logging.info('train_ODS %f', train_acc)
 
         logging.info("Evaluate seed archs")
         arch_pool += child_arch_pool

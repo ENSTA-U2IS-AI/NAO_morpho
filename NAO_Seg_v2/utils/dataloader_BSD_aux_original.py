@@ -16,13 +16,14 @@ def randomCrop(image, label):
     return image, label
 
 class BSD_loader(Dataset):
-    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(1024,1024),transform=False,normalisation=False):
+    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(1024,1024),transform=False,normalisation=False,keep_size=False):
         # first: load imgs form indicated path
         self.root = root
         self.split = split
         self.transform = transform
         self.target_size=target_size
         self.normalisation=normalisation
+        self.keep_size=keep_size
 
         if self.split=='train':
             self.filelist = os.path.join(self.root, 'train_pair.lst')
@@ -41,9 +42,9 @@ class BSD_loader(Dataset):
             img=cv2.imread(os.path.join(self.root,img_file),cv2.IMREAD_COLOR).astype(np.float32)
             label= cv2.imread(os.path.join(self.root,lb_file),cv2.IMREAD_GRAYSCALE).astype(np.float32)
 
-
-            img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-            label = cv2.resize(label, dsize=(256,256), interpolation=cv2.INTER_LINEAR)
+            if self.keep_size==False:
+                img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+                label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
 
             label = label[np.newaxis, :, :]  # Add one channel at first (CHW).
             label[label==0] = 0
@@ -56,8 +57,6 @@ class BSD_loader(Dataset):
                   img = img - np.array((104.00698793, # Minus statistics.
                                         116.66876762,
                                         122.67891434))
-            else:
-                  img = img
 
             img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             img = img.astype(np.float32)        # To float32.
@@ -67,7 +66,8 @@ class BSD_loader(Dataset):
             img = cv2.imread(os.path.join(self.root, img_file), cv2.IMREAD_COLOR).astype(np.float32)
             img_original = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             fileName=img_file.split('/')[1].split('.')[0]
-            img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+            if self.keep_size==False:
+                img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
             img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             return img,img_original,fileName
 

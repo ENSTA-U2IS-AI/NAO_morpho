@@ -74,6 +74,39 @@ def evaluation_OIS(img_predict,img_GT):
 
     return OIS
 
+
+def evaluation_ODS(img_predict,img_GT):
+    """
+    Args:
+      img_predict: input 4D tensor [B,C,H,W] C = 2 B = 2
+      target: input 4D tensor [B,C,H,W] C = 2 B = 2
+      class: C: number of categories
+    Reture: F1 score
+    """
+    # img_predict = torch.nn.functional.softmax(img_predict, 1)
+
+    # ## with channel=1 we get the img[B,H,W]
+    # img_predict = img_predict[:, 1]
+
+    ## we get an array with floats
+    thresholds = np.linspace(0, 1, 100)
+
+    img_predict = img_predict.cpu().detach().numpy().astype(np.float)
+    img_GT = img_GT.cpu().detach().numpy().astype(np.int)
+
+    # --calculate the ODS
+    ODS_th = []
+    for th in thresholds:
+        f_measure = []
+        for i in range(img_predict.shape[0]):
+            edge = np.where(img_predict[i] >= th, 1, 0).astype(np.int)
+            f_measure.append(calculate_f_measure(edge, img_GT[i]))
+        f_measure_sum = np.sum(np.array(f_measure))
+        ODS_th.append(f_measure_sum)
+    ODS = np.amax(np.array(ODS_th)) / img_predict.shape[0]
+
+    return ODS
+
 def save_predict_imgs(img_predict,nums):
     """
       Args:
