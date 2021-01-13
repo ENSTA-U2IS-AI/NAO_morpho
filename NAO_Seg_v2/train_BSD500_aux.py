@@ -22,10 +22,10 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=1)  # 8
+parser.add_argument('--batch_size', type=int, default=3)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
 parser.add_argument('--epochs', type=int, default=30)
-parser.add_argument('--layers', type=int, default=1)  # 5
+parser.add_argument('--layers', type=int, default=5)  # 5
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=8)  # 16
 parser.add_argument('--cutout_size', type=int, default=None)
@@ -41,7 +41,7 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=1)
 parser.add_argument('--save', type=bool, default=True)
 parser.add_argument('--iterations', type=int, default=20000)
-parser.add_argument('--val_per_iter', type=int, default=30000)
+parser.add_argument('--val_per_iter', type=int, default=20000)
 parser.add_argument('--lr_schedule_power', type=float, default=0.9)
 parser.add_argument('--double_down_channel', type=bool, default=False)
 args = parser.parse_args()
@@ -141,7 +141,7 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     # i_iter = kwargs.pop('i_iter')
     root = "./data/HED-BSDS"
 
-    train_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='train', normalisation=False, keep_size=True)
+    train_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='train', normalisation=False,keep_size=False)
 
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batch_size, pin_memory=True, num_workers=16, shuffle=True)
@@ -209,7 +209,7 @@ def main():
     i_iter = start_iteration
     valid_loss = 10
     root = "./data/HED-BSDS"
-    test_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='test')
+    test_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='test',keep_size=False)
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
     logging.info("=====================start training=====================")
     model.train()
@@ -223,16 +223,15 @@ def main():
             labels = labels.cuda()
 
             outs = model(images,labels.size()[2:4])
-            # print(outs[-1].size())
             # loss = cross_entropy_loss(outs[-1], labels)
             # all layers
             loss = 0
-            for i, out in enumerate(outs):
+            for i,out in enumerate(outs):
                 loss_ = cross_entropy_loss(out, labels)
-                # if(i==4):
-                #   loss += loss_*1.5
-                # else:
-                loss += loss_
+                if(i==5):
+                    loss += loss_*5
+                else:
+                    loss += loss_*(1+i/10)
 
             optimizer.zero_grad()
             loss.backward()
@@ -241,20 +240,20 @@ def main():
 
             avg_loss += float(loss)
 
-            if (i_iter % 1000 == 0):
+            if (i_iter % 100 == 0):
                 logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter, total_iter,
                                                                                     optimizer.param_groups[0]['lr'],
-                                                                                    avg_loss / 1000, float(loss)))
+                                                                                    avg_loss / 100, float(loss)))
                 avg_loss = 0
 
             if (i_iter % args.val_per_iter == 0):
                 logging.info(' save the current model %d', i_iter)
                 utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
                 try:
-                    save_pre_imgs(test_queue, model)
-                    logging.info('save is finished!')
+                  save_pre_imgs(test_queue, model)
+                  logging.info('save is finished!')
                 except:
-                    logging.info('save is failed!')
+                  logging.info('save is failed!')
                 model.train()
 
     utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=True)

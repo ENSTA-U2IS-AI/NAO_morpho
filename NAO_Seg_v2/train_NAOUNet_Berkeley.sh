@@ -23,7 +23,7 @@ mkdir -p $OUTPUT_DIR
 # fixed_arc="1 3 0 1 0 1 2 4 2 4 2 4 2 4 0 1 4 4 2 4 1 8 0 6 2 4 2 4 2 4 2 4 2 4 2 4 2 6 4 6 "
 
 # -- with mor
-fixed_arc="0 5 1 0 1 2 0 3 2 5 2 0 4 6 4 6 5 1 0 0 "
+fixed_arc="0 1 1 0 0 1 0 1 1 5 0 2 1 5 0 6 1 2 0 6 "
 
 python train_BSD500_aux.py \
   --data=$DATA_DIR \

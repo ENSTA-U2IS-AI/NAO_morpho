@@ -44,7 +44,7 @@ class BSD_loader(Dataset):
 
             if self.keep_size==False:
                 img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
-                label = cv2.resize(label, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
+                label = cv2.resize(label, dsize=(256,256), interpolation=cv2.INTER_LINEAR)
 
             label = label[np.newaxis, :, :]  # Add one channel at first (CHW).
             label[label==0] = 0
