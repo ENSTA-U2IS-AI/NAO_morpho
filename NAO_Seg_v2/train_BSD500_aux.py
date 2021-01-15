@@ -10,6 +10,7 @@ import torch.utils
 import torch.backends.cudnn as cudnn
 from model.model import NASUNetBSD
 from model.decorder import NAOMSCBC
+from utils import dataset
 import os
 
 parser = argparse.ArgumentParser()
@@ -22,9 +23,9 @@ parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
-parser.add_argument('--batch_size', type=int, default=3)  # 8
+parser.add_argument('--batch_size', type=int, default=5)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
-parser.add_argument('--epochs', type=int, default=30)
+parser.add_argument('--epochs', type=int, default=15)
 parser.add_argument('--layers', type=int, default=5)  # 5
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=8)  # 16
@@ -41,7 +42,7 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--classes', type=int, default=1)
 parser.add_argument('--save', type=bool, default=True)
 parser.add_argument('--iterations', type=int, default=20000)
-parser.add_argument('--val_per_iter', type=int, default=20000)
+parser.add_argument('--val_per_iter', type=int, default=10000)
 parser.add_argument('--lr_schedule_power', type=float, default=0.9)
 parser.add_argument('--double_down_channel', type=bool, default=False)
 args = parser.parse_args()
@@ -102,6 +103,37 @@ def save_pre_imgs(queue, model, ODS=None):
 
     print("save is finished")
 
+def valid(valid_queue, model,criterion=None):
+    objs = utils.AvgrageMeter()
+    ODS = utils.AvgrageMeter()
+    objs.reset()
+    ODS.reset()
+    # set the mode of model to eval
+    model.eval()
+
+    with torch.no_grad():
+        for step, (input, target) in enumerate(valid_queue):
+            input = input.cuda()
+            target = target.cuda()
+
+            outs = model(input, target.size()[2:4])
+            loss = cross_entropy_loss(outs[-1], target.long())
+            #all layers
+            # loss = 0
+            # for out in outs:
+            #     loss_ = cross_entropy_loss(out, target.long())
+            #     loss += loss_
+
+            ods_ = evaluate.evaluation_ODS(outs[-1], target)
+            n = input.size(0)
+            objs.update(loss.data, n)
+            ODS.update(ods_, n)
+
+            if (step + 1) % 10 == 0:
+                logging.info('valid %03d loss %e ODS %f ', step + 1, objs.avg, ODS.avg)
+
+        logging.info(" ODS: %f loss: %e", ODS.avg, objs.avg)
+    return ODS.avg
 
 def get_builder(dataset):
     if dataset == 'BSD500':
@@ -211,6 +243,11 @@ def main():
     root = "./data/HED-BSDS"
     test_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='test',keep_size=False)
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
+    root = "./data/BSR/BSDS500/data/"
+    valid_data = dataset.BSD_loader(root=root, split='val', random_crop=False, random_flip=False, normalisation=False)
+    valid_queue = torch.utils.data.DataLoader(
+        valid_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
+    best_ods=0
     logging.info("=====================start training=====================")
     model.train()
     for epoch in range(args.epochs):
@@ -223,15 +260,17 @@ def main():
             labels = labels.cuda()
 
             outs = model(images,labels.size()[2:4])
-            # loss = cross_entropy_loss(outs[-1], labels)
-            # all layers
+            #last layer
             loss = 0
-            for i,out in enumerate(outs):
-                loss_ = cross_entropy_loss(out, labels)
-                if(i==5):
-                    loss += loss_*5
-                else:
-                    loss += loss_*(1+i/10)
+            loss = cross_entropy_loss(outs[-1], labels)
+            # all layers
+            # loss = 0
+            # for i,out in enumerate(outs):
+            #     loss_ = cross_entropy_loss(out, labels)
+            #     if(i==5):
+            #         loss += loss_*5
+            #     else:
+            #         loss += loss_*(1+i/10)
 
             optimizer.zero_grad()
             loss.backward()
@@ -247,16 +286,19 @@ def main():
                 avg_loss = 0
 
             if (i_iter % args.val_per_iter == 0):
-                logging.info(' save the current model %d', i_iter)
-                utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
-                try:
-                  save_pre_imgs(test_queue, model)
-                  logging.info('save is finished!')
-                except:
-                  logging.info('save is failed!')
+                valid_ods = valid(valid_queue,model)
+                if(valid_ods>best_ods):
+                    best_ods = valid_ods
+                    logging.info(' save the current model %d', i_iter)
+                    utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=True)
+                    try:
+                      save_pre_imgs(test_queue, model)
+                      logging.info('save is finished!')
+                    except:
+                      logging.info('save is failed!')
                 model.train()
 
-    utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=True)
+    utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
     logging.info("=====================start testing=====================")
     logging.info('loading the best model.')
     output_dir = './exp/NAONet_BSD_500/'
