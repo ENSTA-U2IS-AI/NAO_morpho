@@ -2,7 +2,7 @@ import sys
 import glob
 import numpy as np
 import torch
-from utils import utils, evaluate, dataloader_BSD_aux_original
+from utils import utils, evaluate, dataloader_BSD_Pascal
 import logging
 import argparse
 import torch.nn as nn
@@ -173,7 +173,7 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     # i_iter = kwargs.pop('i_iter')
     root = "./data/HED-BSDS"
 
-    train_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='train', normalisation=False,keep_size=False)
+    train_data = dataloader_BSD_Pascal.BSD_loader(root=root, split='train', normalisation=False, keep_size=False)
 
     train_queue = torch.utils.data.DataLoader(
         train_data, batch_size=args.batch_size, pin_memory=True, num_workers=16, shuffle=True)
@@ -241,7 +241,7 @@ def main():
     i_iter = start_iteration
     valid_loss = 10
     root = "./data/HED-BSDS"
-    test_data = dataloader_BSD_aux_original.BSD_loader(root=root, split='test',keep_size=False)
+    test_data = dataloader_BSD_Pascal.BSD_loader(root=root, split='test', keep_size=False)
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
     root = "./data/BSR/BSDS500/data/"
     valid_data = dataset.BSD_loader(root=root, split='val', random_crop=False, random_flip=False, normalisation=False)
