@@ -8,25 +8,6 @@ from matplotlib import pyplot as plt
 
 def calculate_f_measure(img_predict,gt,beta2=1):
 
-    # TP_num_pixels = np.sum(gt & img_predict)
-    # FP_num_pixels = np.sum(img_predict & ~gt)
-    # FN_num_pixels = np.sum(gt & ~img_predict)
-    # f1_score = 0.
-    # if TP_num_pixels+FP_num_pixels==0:
-    #   Precision = 0.0
-    # else:
-    #   Precision = TP_num_pixels / (TP_num_pixels + FP_num_pixels)
-    # if TP_num_pixels+FN_num_pixels==0:
-    #   Recall = 0.0
-    # else:
-    #   Recall =  TP_num_pixels / (TP_num_pixels + FN_num_pixels)
-
-    # if Precision+Recall==0:
-    #   F1_measure = 0.0
-    # else:
-    #   F1_measure = 2* Precision * Recall / (Precision + Recall)
-
-    # f1_score+=F1_measure
     tp=(img_predict*gt).sum()
     tp_fp=img_predict.sum()
     tp_fn=gt.sum()
@@ -158,28 +139,3 @@ def accuracyandlossCurve(loss, valid_OIS, epoches):
     plt.savefig('./curve/accuracy_loss_validation.png')
     plt.show()
 
-# def accuracyandlossCurve(loss, valid_OIS, epoches):
-#     """this fonction is to display the accuracy and loss of the validation"""
-#     x_loss = np.linspace(1, epoches, num=epoches)
-#     x_accuracy = np.linspace(1, epoches, num=epoches)
-#     y_loss = loss
-#     y_valid_OIS = valid_OIS
-#     plt.figure(figsize=(10, 8))
-
-#     plt.subplot(2, 1, 1)
-#     plt.plot(x_loss, y_loss)
-#     plt.title('Valid: loss Vs epoches')
-#     plt.ylabel('Valid loss')
-#     # y_ticks = np.arange(0, 2, 0.2)
-#     # plt.yticks(y_ticks)
-
-#     plt.subplot(2, 1, 2)
-#     plt.plot(x_accuracy, y_valid_OIS, color='red', label='train_loss')
-#     # plt.plot(x_accuracy,y_accuracy_top5,color='blue',label='top5')
-#     plt.title('train: loss Vs epoches')
-#     plt.ylabel('train_loss')
-#     # y_ticks = np.arange(0, 1.1, 0.1)
-#     # plt.yticks(y_ticks)
-#     plt.legend()
-#     plt.savefig('./curve/loss.png')
-#     plt.show()
