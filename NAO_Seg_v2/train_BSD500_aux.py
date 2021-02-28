@@ -8,7 +8,7 @@ import argparse
 import torch.nn as nn
 import torch.utils
 import torch.backends.cudnn as cudnn
-from model.model import NASUNetBSD
+from model.NAO_Unet import NASUNetBSD
 from model.decorder import NAOMSCBC
 from utils import dataset
 import os

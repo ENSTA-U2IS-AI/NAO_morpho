@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.utils
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-from model.model import NASUNetBSD
+from model.NAO_Unet import NASUNetBSD
 from search.model_search import NASUNetSegmentationWS
 from model.decorder import NAOMSCBC,NAOMSCBC_decoder_size
 from search.decoder_search import NAOMSCBC_search
@@ -506,7 +506,7 @@ def main():
             train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool,
                                                      child_arch_pool_prob)
             scheduler.step()
-            logging.info('train_OIS %f', train_acc)
+            logging.info('train_ODS %f', train_acc)
 
         logging.info("Evaluate seed archs")
         arch_pool += child_arch_pool

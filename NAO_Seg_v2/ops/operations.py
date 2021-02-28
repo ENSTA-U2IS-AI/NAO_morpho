@@ -509,8 +509,10 @@ class WSPseudo_Shuff_dilation(nn.Module):
         self.padding = kernel_size // 2
         self.degree = degree
         self.stride = stride
-        self.convmorph = nn.Conv2d(in_channels, out_channels * kernel_size * kernel_size, kernel_size, stride=1,
-                                   padding=1)
+        #self.convmorph = nn.Conv2d(in_channels, out_channels * kernel_size * kernel_size, kernel_size, stride=1,
+        #                           padding=1)
+        self.w = nn.ParameterList([nn.Parameter(torch.Tensor(out_channels * kernel_size * kernel_size, in_channels, kernel_size, kernel_size)) \
+                                                   for _ in range(num_possible_inputs)])
         self.pixel_shuffle = nn.PixelShuffle(kernel_size)
         self.pool_ = nn.MaxPool2d(kernel_size, stride=kernel_size)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -521,8 +523,8 @@ class WSPseudo_Shuff_dilation(nn.Module):
         x: tensor of shape (B,C,H,W)
         '''
         x = self.bn(x)
-        y = self.convmorph(x)  # / self.degree
-        # y = F.conv2d(x, self.w, stride=self.stride, padding=self.padding)
+        #y = self.convmorph(x)  # / self.degree
+        y =  F.conv2d(x,self.w[x_id],stride=1,padding=1)
         y = self.pixel_shuffle(y)
         y = self.pool_(y)
         if stride == 2:
