@@ -16,7 +16,7 @@ def randomCrop(image, label):
     return image, label
 
 class BSD_loader(Dataset):
-    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(1024,1024),transform=False,normalisation=False,keep_size=False):
+    def __init__(self,root='./data/HED-BSDS',split='train',target_size=(1200,1200),transform=False,normalisation=False,keep_size=False):
         # first: load imgs form indicated path
         self.root = root
         self.split = split
