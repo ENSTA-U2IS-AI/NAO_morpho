@@ -147,11 +147,11 @@ class NAOMSCBC_search(nn.Module):
         for i, cin in enumerate(self.C_down_channel):
             self.decoder.append(NAODecoderSearch(args=args, c_in=cin, c_out=channels, nodes=nodes))
 
-        self.score_dsn1 = nn.Conv2d(channels, 1, self.classes)
-        self.score_dsn2 = nn.Conv2d(channels, 1, self.classes)
-        self.score_dsn3 = nn.Conv2d(channels, 1, self.classes)
-        self.score_dsn4 = nn.Conv2d(channels, 1, self.classes)
-        self.score_dsn5 = nn.Conv2d(channels, 1, self.classes)
+        self.score_dsn1 = nn.Conv2d(channels, self.classes, 1)
+        self.score_dsn2 = nn.Conv2d(channels, self.classes, 1)
+        self.score_dsn3 = nn.Conv2d(channels, self.classes, 1)
+        self.score_dsn4 = nn.Conv2d(channels, self.classes, 1)
+        self.score_dsn5 = nn.Conv2d(channels, self.classes, 1)
         self.score_final = nn.Conv2d(5*self.classes, self.classes, 1)
         self.relu = nn.ReLU(inplace=True)
 
