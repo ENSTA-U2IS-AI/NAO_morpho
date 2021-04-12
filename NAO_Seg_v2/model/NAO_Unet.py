@@ -112,9 +112,7 @@ class cellUp(nn.Module):
                                    op_type='pre_ops_cell')
         # self.preprocess1 = ConvNet(ch_prev, channels, stride=2, transpose=True, affine=True),  # 'up_conv_3×3'
         self.preprocess1 = ConvNet(ch_prev, channels*4, kernel_size=1, stride=1, affine=True, op_type='pre_ops_cell')
-        self.preprocess1_ = nn.ConvTranspose2d(channels*4, channels, kernel_size=3,stride=2, padding=1,output_padding=1, bias=True)
-        # self.preprocess1_ = ConvNet(channels*4, channels, kernel_size=3, stride=2, affine=True, transpose=True,op_type='ops')
-        # self.PS = nn.PixelShuffle(2)
+        self.preprocess1_ = ConvNet(channels*4, channels, kernel_size=3, stride=2, affine=True, transpose=True,op_type='ops')
 
 
         stride = 1
@@ -156,7 +154,6 @@ class NASUNetBSD(nn.Module):
         self.multiplier = nodes
         self.use_aux_head = use_aux_head
         self.keep_prob=keep_prob
-        self.nclass=nclass
 
         if isinstance(arch, str):
             arch = list(map(int, arch.strip().split()))
@@ -172,7 +169,6 @@ class NASUNetBSD(nn.Module):
         self._stem1 = ConvNet(in_channels, ch_prev, kernel_size=3, stride=2, op_type='pre_ops')
         self.cells_down = nn.ModuleList()
         self.cells_up = nn.ModuleList()
-        self.score_outs = nn.ModuleList()
 
         path_recorder = []
         path_recorder += [ch_prev]
@@ -187,15 +183,13 @@ class NASUNetBSD(nn.Module):
             path_recorder +=[ch_prev]
 
         # this is the right part of U-Net (decoder) up sampling
-        for i in range(depth):
+        for i in range(depth+1):
             ch_prev_2 = path_recorder[-(i+2)]
             cell_up = cellUp(self.search_space,self.UpCell_arch,ch_prev_2,ch_prev,ch_curr)
             self.cells_up += [cell_up]
             ch_prev = cell_up._multiplier*ch_curr
-            self.score_outs.append(nn.Conv2d(ch_prev,1,1))
             ch_curr = ch_curr//2 if self.double_down_channel else ch_curr
 
-        self.score_final = nn.Conv2d(depth, self.nclass, 1)
         if self.use_aux_head:
           self.ConvSegmentation = Aux_dropout(ch_prev, nclass, nn.BatchNorm2d,dropout_rate=1-self.keep_prob,)
         else:
@@ -208,8 +202,9 @@ class NASUNetBSD(nn.Module):
             if w.data.dim() >= 2:
                 nn.init.kaiming_normal_(w.data)
 
-    def forward(self, input, size):
+    def forward(self, input):
         """bchw for tensor"""
+        _,_,h,w = input.size()
 
         s0, s1 = self._stem0(input), self._stem1(input)
         cells_recorder = []
@@ -222,21 +217,13 @@ class NASUNetBSD(nn.Module):
             s0,s1 = s1,cell(s0,s1)
             cells_recorder.append(s1)
 
-        outs = []
-        upsample = nn.UpsamplingBilinear2d(size)
         #the right part of U-Net
         for i, cell in enumerate(self.cells_up):
             s0 = cells_recorder[-(i+2)] # get the chs_prev_prev
             s1 = cell(s0,s1)
-            s1_out=self.score_outs[i](s1)
-            outs.append(upsample(s1_out))
+        
+        x = self.ConvSegmentation(s1)
 
-        fuse = torch.cat(outs[:], dim=1)
-        fuse_out = self.score_final(fuse)
-        outs.append(fuse_out)
-        results = [torch.sigmoid(out) for out in outs]
-        # x = self.ConvSegmentation(s1)
-        #
-        # x= F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
-        # x=torch.sigmoid(x)
-        return results
+        x= F.interpolate(x, size=input.size()[2:4], mode='bilinear', align_corners=True)
+        x=torch.sigmoid(x)
+        return x

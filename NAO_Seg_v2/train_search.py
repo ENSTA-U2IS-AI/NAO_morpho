@@ -12,7 +12,7 @@ import torch.utils
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from model.NAO_Unet import NASUNetBSD
-from search.model_search import NASUNetSegmentationWS
+from search.NAO_Unet_search import NASUNetSegmentationWS
 from model.decoder import NAOMSCBC,NAOMSCBC_decoder_size
 from search.decoder_search import NAOMSCBC_search
 from ops.operations import OPERATIONS_search_with_mor, OPERATIONS_search_without_mor
