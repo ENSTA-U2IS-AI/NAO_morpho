@@ -9,8 +9,8 @@ There are two sub-projects, one is for image classification which is NAO-V2 and 
 
 ## Requirements
 * Pytorch >= 1.0.0
-* Dataset for edge detection(provided by [Richer Convolutional Features for Edge Detection](https://github.com/yun-liu/rcf))
-
+* Dataset for edge detection(provided by [Richer Convolutional Features for Edge Detection repo](https://github.com/yun-liu/rcf))
+  * [http://mftp.mmcheng.net/liuyun/rcf/data/bsds_pascal_train_pair.lst](wget http://mftp.mmcheng.net/liuyun/rcf/data/bsds_pascal_train_pair.lst)
 and other requirements... (cv2, numpy , etc.)
 ## NAO-V2
 Released with the paper [Understanding and Improving One-shot Neural Architecture Optimization], by [Renqian Luo](http://home.ustc.edu.cn/~lrq), [Tao Qin](https://www.microsoft.com/en-us/research/people/taoqin/), [En-Hong Chen](http://staff.ustc.edu.cn/~cheneh/)
