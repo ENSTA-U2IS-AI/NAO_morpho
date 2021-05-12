@@ -57,6 +57,10 @@ We are the first to add ODS python code to filter great architecture and save th
 ```
 (echo "data_dir = '../output/epoch-x-test'"; cat eval_edge.m)|matlab -nodisplay -nodesktop -nosplash
 ```
+## URL
+* [Pretrained model for edge detection](https://drive.google.com/file/d/17OZhn87HmaoaJD1oYkE3MDaBCySnaV0i/view?usp=sharing)
+* [Test features maps](https://drive.google.com/file/d/1CD9aqNStdDCIcmz-bYDvPs-N9fM8tV5p/view?usp=sharing)
+* [Arch examples](https://drive.google.com/file/d/1Y7edbOdHLPlnDsiO1Bm2RZGB2jAYwl4H/view?usp=sharing)
 
 ## License
 The codes and models in this repo are released under the GNU GPLv3 license.
