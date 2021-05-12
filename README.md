@@ -24,9 +24,9 @@ bash ./NAO_V2/train_search_cifar10.sh
 * After model searching, we need to train CIFAR 10, then refer to:
 | Dataset       | Script        | Time          | Top1 Error Rate  |
 | ------------- | ------------- | ------------- | ------------- | 
-|CIFAR-10| ./NAO_V2/train_NAONet_V2_36_cifar10.sh | 2 days | **2.63%** | 
+|CIFAR-10       | ./NAO_V2/train_NAONet_V2_36_cifar10.sh | 2 days | **2.63%** | 
 ```
-bash  ./NAO_V2/train_NAONet_V2_36_cifar10.sh
+bash ./NAO_V2/train_NAONet_V2_36_cifar10.sh
 ```
 
 
