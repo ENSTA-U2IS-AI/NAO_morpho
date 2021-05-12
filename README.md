@@ -65,5 +65,42 @@ We are the first to add ODS python code to filter great architecture and save th
 ## License
 The codes and models in this repo are released under the GNU GPLv3 license.
 
+## Acknowledgment
+Thanks to the contributors of NAO, RCF, HED.
+```
+@misc{luo2019neural,
+      title={Neural Architecture Optimization}, 
+      author={Renqian Luo and Fei Tian and Tao Qin and Enhong Chen and Tie-Yan Liu},
+      year={2019},
+      eprint={1808.07233},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG}
+}
+```
+```
+@article{Liu_2019,
+   title={Richer Convolutional Features for Edge Detection},
+   volume={41},
+   ISSN={1939-3539},
+   url={http://dx.doi.org/10.1109/TPAMI.2018.2878849},
+   DOI={10.1109/tpami.2018.2878849},
+   number={8},
+   journal={IEEE Transactions on Pattern Analysis and Machine Intelligence},
+   publisher={Institute of Electrical and Electronics Engineers (IEEE)},
+   author={Liu, Yun and Cheng, Ming-Ming and Hu, Xiaowei and Bian, Jia-Wang and Zhang, Le and Bai, Xiang and Tang, Jinhui},
+   year={2019},
+   month={Aug},
+   pages={1939–1946}
+}
 
+```
+```
+@inproceedings{xie2015holistically,
+  title={Holistically-nested edge detection},
+  author={Xie, Saining and Tu, Zhuowen},
+  booktitle={Proceedings of the IEEE International Conference on Computer Vision},
+  pages={1395--1403},
+  year={2015}
+}
+```
 _This is not an official Microsoft product._
