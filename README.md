@@ -16,7 +16,7 @@ There are two sub-projects, one is for image classification which is NAO-V2 and 
 * Eval method provided by [hed](https://github.com/xwjabc/hed/tree/c8ed5abc4d2b6ad2862b0d61cf6184ce2cdf3cae/eval), but please replace the file ```eval_edge.m``` where we just modified the path and we keep the same for other parameters for fairness.
 * and other requirements... (cv2, numpy , etc.)
 
-## Usage
+## Usage for classification
 * To search the CNN architecture with the morphological network, please refer firstly to:
 ```
 bash ./NAO_V2/train_search_cifar10.sh
@@ -30,7 +30,25 @@ bash ./NAO_V2/train_search_cifar10.sh
 bash ./NAO_V2/train_NAONet_V2_36_cifar10.sh
 ```
 
+## Usage for edge detection
+### BSD500
+* Firstly download the dataset and then use NAO to search the CNN architecture with the morphological gradient network, refer to:
+```
+bash ./NAO_Seg_v2/train_search_BSD500.sh
+```
+* After model searching, we need to train BSD500, then refer to:
 
+| Dataset       | Script        | Time          | ODS  | OIS  |AP  |R50  |
+| ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | 
+|BSD500      | ./NAO_Seg_v2/train_NAOUNet_Berkeley.sh | 2 days | **0.814±0.001** |  **0.831±0.001** | **0.850±0.002** | **0.908±0.005** |
+```
+bash ./NAO_Seg_v2/train_NAOUNet_Berkeley.sh
+```
+* After training, we can get test predict features maps by runing:
+```
+bash ./NAO_Seg_v2/test_NAOUNet_Berkeley.sh
+```
+### Evaluation 
 
 ## License
 The codes and models in this repo are released under the GNU GPLv3 license.
