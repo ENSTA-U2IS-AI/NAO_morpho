@@ -26,7 +26,7 @@ class BSD_loader(Dataset):
         self.keep_size=keep_size
 
         if self.split=='train':
-            self.filelist = os.path.join(self.root, 'train_pair.lst')
+            self.filelist = os.path.join(self.root, 'bsds_pascal_train_pair.lst')
         elif self.split == 'test':
             self.filelist = os.path.join(self.root, 'test.lst')
 
@@ -67,7 +67,7 @@ class BSD_loader(Dataset):
             img_original = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             fileName=img_file.split('/')[1].split('.')[0]
             if self.keep_size==False:
-                img = cv2.resize(img, dsize=(img_original.shape[1]*4,img_original.shape[2]*4), interpolation=cv2.INTER_LINEAR)
+                img = cv2.resize(img, dsize=self.target_size, interpolation=cv2.INTER_LINEAR)
             img = np.transpose(img, (2, 0, 1))  # HWC to CHW.
             return img,img_original,fileName
 

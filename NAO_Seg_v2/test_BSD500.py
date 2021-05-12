@@ -25,7 +25,7 @@ parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--batch_size', type=int, default=5)  # 8
 parser.add_argument('--eval_batch_size', type=int, default=1)
-parser.add_argument('--epochs', type=int, default=10)
+parser.add_argument('--epochs', type=int, default=15)
 parser.add_argument('--layers', type=int, default=5)  # 5
 parser.add_argument('--nodes', type=int, default=5)
 parser.add_argument('--channels', type=int, default=8)  # 16
@@ -53,6 +53,18 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format=log_format, datefmt='%m/%d %I:%M:%S %p')
 
 
+def recursive_glob(rootdir=".", suffix=""):
+    """Performs recursive glob with given suffix and rootdir
+        :param rootdir is the root directory
+        :param suffix is the suffix to be searched
+    """
+    return [
+        os.path.join(looproot, filename)
+        for looproot, _, filenames in os.walk(rootdir)
+        for filename in filenames
+        if filename.endswith(suffix)
+    ]
+
 def save_pre_imgs(queue, model, ODS=None):
     from PIL import Image
     import scipy.io as io
@@ -74,6 +86,7 @@ def save_pre_imgs(queue, model, ODS=None):
 
     with torch.no_grad():
         for step, (input, img_original, file_name) in enumerate(queue):
+            logging.info("working on the {}th image... ".format(step))
             h,w = img_original.size()[2:]
             input = input.cuda()
 
@@ -170,20 +183,7 @@ def adjust_learning_rate(optimizer, i_iter, max_iter):
 
 
 def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
-    # epoch = kwargs.pop('epoch')
-    # i_iter = kwargs.pop('i_iter')
-    root = "./data/"
 
-    train_data = dataloader_BSD_Pascal.BSD_loader(root=root, split='train', normalisation=False,keep_size=False)
-
-    train_queue = torch.utils.data.DataLoader(
-        train_data, batch_size=args.batch_size, pin_memory=True, num_workers=16, shuffle=True)
-
-    # model = DeepLab(output_stride=16, class_num=2, pretrained=False, freeze_bn=False)
-    # model = NASUNetBSD(args, args.classes, depth=args.layers, c=args.channels,
-    #                    keep_prob=args.keep_prob, nodes=args.nodes,
-    #                    use_aux_head=args.use_aux_head, arch=args.arch,
-    #                    double_down_channel=args.double_down_channel)
     model = NAOMSCBC(args,args.classes,args.arch,channels=42,pretrained=True,res='101')
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
@@ -204,121 +204,41 @@ def build_BSD_500(model_state_dict, optimizer_state_dict, **kwargs):
     if optimizer_state_dict is not None:
         optimizer.load_state_dict(optimizer_state_dict)
 
-    return train_queue, model, optimizer
+    return model, optimizer
 
 
 def main():
-    if not torch.cuda.is_available():
-        logging.info('No GPU found!')
-        sys.exit(1)
-
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
-    cudnn.enabled = True
-    cudnn.benchmark = True
 
     logging.info("Args = %s", args)
     output_dir = './exp/NAONet_BSD_500/'
-    start_iteration = 0
+
     _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_model(output_dir)
     build_fn = get_builder(args.dataset)
-    train_queue, model, optimizer = build_fn(model_state_dict,
-                                             optimizer_state_dict,
-                                             )
 
-    filename = "./curve/loss.txt"  # --for draw save the loss and ods of valid set
-    if not os.path.exists(os.path.dirname(filename)):
-        try:
-            os.makedirs(os.path.dirname(filename))
-        except:
-            logging.info('creat the curve folder failed.')
-
-    each_epoch_iter = len(train_queue)
-    print(each_epoch_iter)
-    total_iter = args.epochs * each_epoch_iter
-    print(total_iter)
-    i_iter = start_iteration
-    valid_loss = 10
-    root = "./data/HED-BSDS"
-    test_data = dataloader_BSD_Pascal.BSD_loader(root=root, split='test',keep_size=False)
+    root = "./data/BSR/BSDS500/data/images"
+    test_list = os.path.join(root,"test.lst")
+    if os.path.exists(test_list):
+        os.remove(test_list)
+    f = open(test_list, 'a')
+    for file in recursive_glob(rootdir=os.path.join(root,'test'),suffix="jpg"):
+        f.write("test/"+os.path.basename(file))
+        f.write('\n')
+        print(file)
+    f.close()
+    test_data = dataloader_BSD_Pascal.BSD_loader(root=root, split='test', keep_size=False)
     test_queue = torch.utils.data.DataLoader(test_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
-    root = "./data/BSR/BSDS500/data/"
-    valid_data = dataset.BSD_loader(root=root, split='val', random_crop=False, random_flip=False, normalisation=False)
-    valid_queue = torch.utils.data.DataLoader(
-        valid_data, batch_size=1, pin_memory=True, num_workers=16, shuffle=False)
-    best_ods=0
-    logging.info("=====================start training=====================")
-    model.train()
-    for epoch in range(args.epochs):
-       avg_loss = 0.
-       for i, (images, labels) in enumerate(train_queue):
-           i_iter += 1
-           adjust_learning_rate(optimizer, i_iter, total_iter)
 
-           images = images.cuda().requires_grad_()
-           labels = labels.cuda()
-          # logging.info(images.size())
-          # logging.info(labels.size())
-           outs = model(images,labels.size()[2:4])
-           #last layer
-           loss = 0
-           loss = cross_entropy_loss(outs[-1], labels)
-           # all layers
-           # loss = 0
-           # for i,out in enumerate(outs):
-           #     loss_ = cross_entropy_loss(out, labels)
-           #     if(i==5):
-           #         loss += loss_*5
-           #     else:
-           #         loss += loss_*(1+i/10)
-
-           optimizer.zero_grad()
-           loss.backward()
-           nn.utils.clip_grad_norm_(model.parameters(), args.grad_bound)
-           optimizer.step()
-
-           avg_loss += float(loss)
-
-           if (i_iter % 100 == 0):
-               logging.info('[{}/{}] lr {:e} train_avg_loss {:e} loss {:e}'.format(i_iter, total_iter,
-                                                                                   optimizer.param_groups[0]['lr'],
-                                                                                   avg_loss / 100, float(loss)))
-               avg_loss = 0
-
-           if (i_iter % args.val_per_iter == 0):
-               valid_ods = valid(valid_queue,model)
-               if(valid_ods>best_ods):
-                   best_ods = valid_ods
-                   logging.info(' save the current model %d', i_iter)
-                   utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=True)
-                   try:
-                     save_pre_imgs(test_queue, model)
-                     logging.info('save is finished!')
-                   except:
-                     logging.info('save is failed!')
-               else:
-                   utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
-               model.train()
-
-    utils.save_model(args.output_dir, args, model, i_iter, optimizer, is_best=False)
     logging.info("=====================start testing=====================")
     logging.info('loading the best model.')
     output_dir = './exp/NAONet_BSD_500/'
     _, model_state_dict, start_iteration, optimizer_state_dict = utils.load_model(output_dir)
     print('i_iter', start_iteration)
     build_fn = get_builder(args.dataset)
-    train_queue, model, optimizer = build_fn(model_state_dict,
+    model, optimizer = build_fn(model_state_dict,
                                              optimizer_state_dict,
                                              )
 
-    if (args.save == True):
-        try:
-            save_pre_imgs(test_queue, model)
-            logging.info('save is finished!')
-        except:
-            logging.info('save is failed!')
+    save_pre_imgs(test_queue, model)
 
 
 if __name__ == '__main__':
