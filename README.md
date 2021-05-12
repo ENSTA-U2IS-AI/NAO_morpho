@@ -53,6 +53,10 @@ bash ./NAO_Seg_v2/test_NAOUNet_Berkeley.sh
 We are the first to add ODS python code to filter great architecture and save the better model during the process of training which helps to greatly reduce the time of evaluation. This is because we don't need to do the evaluation which cost about 2hours for each checkpoint. We just need to evaluate the predicted features maps of the best and last checkpoint.
 
 * Firstly, we need to modify the path to the correct address where you can refer to [eval_edge.m](https://github.com/giannifranchi/NAO_morpho/blob/master/NAO_Seg_v2/eval/eval_edge.m)
+* Then download the complete evaluation project based on matlab provided by [HED](https://github.com/xwjabc/hed/tree/master/eval), and runing:
+```
+(echo "data_dir = '../output/epoch-x-test'"; cat eval_edge.m)|matlab -nodisplay -nodesktop -nosplash
+```
 
 ## License
 The codes and models in this repo are released under the GNU GPLv3 license.
