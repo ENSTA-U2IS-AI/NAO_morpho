@@ -15,8 +15,12 @@ There are two sub-projects, one is for image classification which is NAO-V2 and 
   * [http://mftp.mmcheng.net/liuyun/rcf/data/PASCAL.tar.gz]
 * Eval method provided by [hed](https://github.com/xwjabc/hed/tree/c8ed5abc4d2b6ad2862b0d61cf6184ce2cdf3cae/eval), but please replace the file ```eval_edge.m``` where we just modified the path and we keep the same for other parameters for fairness.
 * and other requirements... (cv2, numpy , etc.)
-## NAO-V2
-Released with the paper [Understanding and Improving One-shot Neural Architecture Optimization], by [Renqian Luo](http://home.ustc.edu.cn/~lrq), [Tao Qin](https://www.microsoft.com/en-us/research/people/taoqin/), [En-Hong Chen](http://staff.ustc.edu.cn/~cheneh/)
+
+## Usage
+* To search the CNN architecture with the morphological network, please refer firstly to:
+```
+bash train_search_cifar10.sh
+```
 
 
 ## License
