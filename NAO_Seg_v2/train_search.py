@@ -191,11 +191,10 @@ def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool
         if criterion == None:
             loss = cross_entropy_loss(outs[-1], target)
         else:
-            loss = cross_entropy_loss(outs[-1], target.long())
-           # loss = 0
-           # for out in outs:
-           #     loss_ = cross_entropy_loss(out, target.long())
-           #     loss += loss_
+            loss = 0
+            for out in outs:
+                loss_ = cross_entropy_loss(out, target.long())
+                loss += loss_
 
         optimizer.zero_grad()
         loss.backward()
@@ -232,11 +231,10 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
             if criterion == None:
                 loss = cross_entropy_loss(outs[-1], targets)
             else:
-                loss = cross_entropy_loss(outs[-1], targets.long())
-               # loss = 0
-               # for out in outs:
-               #     loss_ = cross_entropy_loss(out, targets.long())
-               #     loss += loss_
+                loss = 0
+                for out in outs:
+                    loss_ = cross_entropy_loss(out, targets.long())
+                    loss += loss_
 
             ods_ = evaluate.evaluation_ODS(outs[-1], targets)
 
@@ -281,11 +279,10 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
 
                 # sample an arch to train
                 outs = model(input, target.size()[2:4])
-                loss = cross_entropy_loss(outs[-1], target.long())
-                #loss = 0
-                #for out in outs:
-                #    loss_ = cross_entropy_loss(out, target.long())
-                #    loss += loss_
+                loss = 0
+                for out in outs:
+                    loss_ = cross_entropy_loss(out, target.long())
+                    loss += loss_
 
                 optimizer.zero_grad()
                 global_step += 1
@@ -314,11 +311,10 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
                 target = target.cuda()
 
                 outs = model(input, target.size()[2:4])
-                loss = cross_entropy_loss(outs[-1], target.long())
-                #loss = 0
-                #for out in outs:
-                #    loss_ = cross_entropy_loss(out, target.long())
-                #    loss += loss_
+                loss = 0
+                for out in outs:
+                    loss_ = cross_entropy_loss(out, target.long())
+                    loss += loss_
 
                 ods_ = evaluate.evaluation_ODS(outs[-1], target)
                 n = input.size(0)
@@ -408,6 +404,8 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
 
+    torch.cuda.current_device()
+    torch.cuda.device_count()
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
