@@ -10,7 +10,7 @@ There are two sub-projects, one is for image classification which is NAO-V2 and 
 
 ## Citations
 
-If you are using the code/model provided here in a publication, please consider citing:
+If you find our work useful in your research, please consider citing:
 
     @article{liu2019richer,
       title={Richer Convolutional Features for Edge Detection},
