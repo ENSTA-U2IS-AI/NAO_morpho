@@ -12,7 +12,7 @@ There are two sub-projects, one is for image classification which is NAO-V2 and 
 
 If you find our work useful in your research, please consider citing:
 
-@misc{hu2021learning,
+    @misc{hu2021learning,
       title={Learning Deep Morphological Networks with Neural Architecture Search}, 
       author={Yufei Hu and Nacim Belkhir and Jesus Angulo and Angela Yao and Gianni Franchi},
       year={2021},
