@@ -603,7 +603,7 @@ class Pseudo_Shuff_dilation(nn.Module):
       '''
       x: tensor of shape (B,C,H,W)
       '''
-      x = self.bn(x)
+      # x = self.bn(x)
       y = self.convmorph(x)# / self.degree
       y = self.pixel_shuffle(y)
       y = self.pool_(y)
@@ -630,7 +630,7 @@ class WSPseudo_Shuff_dilation(nn.Module):
       '''
       x: tensor of shape (B,C,H,W)
       '''
-      x = self.bn(x)
+      # x = self.bn(x)
       y = self.convmorph(x)# / self.degree
       # y = F.conv2d(x, self.w, stride=self.stride, padding=self.padding)
       y = self.pixel_shuffle(y)
