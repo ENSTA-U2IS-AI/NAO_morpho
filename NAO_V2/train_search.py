@@ -722,7 +722,7 @@ def main():
         step = 0
         scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
-            lr = scheduler.get_lr()[0]
+            lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
             # sample an arch to train
             train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool, child_arch_pool_prob, train_criterion)
