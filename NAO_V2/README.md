@@ -1,4 +1,4 @@
-# For CIFAR10
+# The comparative experiment of pseudo dilation operation without first BN for CIFAR10
 
 * To search the architecture with pseudo dilation operation(without first BN), please run the following command.
 ```
