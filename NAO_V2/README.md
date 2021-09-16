@@ -1,6 +1,6 @@
 # The comparative experiment of pseudo dilation operation without first BN for CIFAR10
 
-* To search the architecture with pseudo dilation operation(without first BN), please run the following command.
+* To search the architectures with pseudo dilation operation(without first BN), please run the following command.
 ```
 bash train_search_cifar10.sh
 ```
