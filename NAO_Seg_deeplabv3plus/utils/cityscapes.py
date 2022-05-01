@@ -12,7 +12,7 @@ class Cityscapes(data.Dataset):
     """Cityscapes <http://www.cityscapes-dataset.com/> Dataset.
     
     **Parameters:**
-        - **root** (string): Root directory of dataset where directory 'leftImg8bit' and 'gtFine' or 'gtCoarse' are located.
+        - **root** (string): Root directory of datasets where directory 'leftImg8bit' and 'gtFine' or 'gtCoarse' are located.
         - **split** (string, optional): The image split to use, 'train', 'test' or 'val' if mode="gtFine" otherwise 'train', 'train_extra' or 'val'
         - **mode** (string, optional): The quality mode to use, 'gtFine' or 'gtCoarse' or 'color'. Can also be a list to output a tuple with all specified target types.
         - **transform** (callable, optional): A function/transform that takes in a PIL image and returns a transformed version. E.g, ``transforms.RandomCrop``
@@ -87,6 +87,9 @@ class Cityscapes(data.Dataset):
             raise ValueError('Invalid split for mode! Please use split="train", split="test"'
                              ' or split="val"')
 
+        # print(self.images_dir)
+        # print(self.targets_dir)
+        # exit()
         if not os.path.isdir(self.images_dir) or not os.path.isdir(self.targets_dir):
             raise RuntimeError('Dataset not found or incomplete. Please make sure all required folders for the'
                                ' specified "split" and "mode" are inside the "root" directory')

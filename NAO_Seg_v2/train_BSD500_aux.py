@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='train',
                     choices=['train', 'test'])
 parser.add_argument('--data', type=str, default='data')
-parser.add_argument('--dataset', type=str, default='BSD500', choices='BSD500')
+parser.add_argument('--datasets', type=str, default='BSD500', choices='BSD500')
 parser.add_argument('--autoaugment', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])

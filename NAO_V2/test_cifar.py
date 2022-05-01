@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mode', type=str, default='train',
                     choices=['train', 'test'])
 parser.add_argument('--data', type=str, default='data/cifar10')
-parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10, cifar100'])
+parser.add_argument('--datasets', type=str, default='cifar10', choices=['cifar10, cifar100'])
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--eval_batch_size', type=int, default=500)

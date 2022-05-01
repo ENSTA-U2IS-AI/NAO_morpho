@@ -123,7 +123,7 @@ class NAODecoderSearch(nn.Module):
 
 class NAO_deeplabv3plus_search(nn.Module):
     def __init__(self, args, classes, nodes,pretrained=False,res='deeplabv3plus_resnet50'):
-        super(NAOMSCBC_search, self).__init__()
+        super(NAO_deeplabv3plus_search, self).__init__()
         self.classes = classes
         self.decoder = nn.ModuleList()
 
