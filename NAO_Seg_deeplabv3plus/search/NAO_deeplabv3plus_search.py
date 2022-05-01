@@ -3,6 +3,7 @@ import torch.nn as nn
 from ops.operations import WSReLUConvBN, OPERATIONS_search_with_mor,OPERATIONS_search_without_mor
 import model.resnet as ResNet
 import model.network as network
+import torch.nn.functional as F
 
 class Node(nn.Module):
     def __init__(self, search_space, channels, stride, node_id, drop_path_keep_prob=None):

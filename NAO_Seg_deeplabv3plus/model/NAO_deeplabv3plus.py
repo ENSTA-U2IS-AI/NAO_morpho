@@ -3,6 +3,7 @@ import torch.nn as nn
 from ops.operations import OPERATIONS_with_mor,OPERATIONS_without_mor
 import model.resnet as ResNet
 import model.network as network
+import torch.nn.functional as F
 
 class Node(nn.Module):
     def __init__(self,search_space,x_id,x_op,y_id,y_op,channels,stride):
