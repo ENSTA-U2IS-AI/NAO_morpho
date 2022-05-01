@@ -174,6 +174,7 @@ class NAO_deeplabv3plus(nn.Module):
         # architecture for NAO + deeplabv3plus
         c_outs = self.NAO_deeplabv3plus(x)
         results = self.decoder[0](c_outs,size)
+        # print(results.size())
         results = self.score(results)
         results = F.interpolate(results, size=x.size()[2:4], mode='bilinear', align_corners=False)
         return results

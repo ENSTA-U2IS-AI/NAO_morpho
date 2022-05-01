@@ -148,9 +148,14 @@ class NAO_deeplabv3plus_search(nn.Module):
 
     def forward(self, x, size, arch, bn_train=False):
 
-        c_outs = self.NAO_deeplabv3plus(x)
+        c_outs = self.NAO_deeplabv3plus(x) # ([2, 256, 129, 129])
         results = self.decoder[0](c_outs,size,arch[0],bn_train=bn_train)
+        print(results.size())
         results = self.score(results)
+        print(results.size())
+        # exit()
         results = F.interpolate(results, size=x.size()[2:4], mode='bilinear', align_corners=False)
+        print(results.size())
+        exit()
         return results
 

@@ -14,6 +14,8 @@ class _SimpleSegmentationModel(nn.Module):
         input_shape = x.shape[-2:]
         features = self.backbone(x)
         x = self.classifier(features)
+        # print(x.size())
+        # exit()
         # x = F.interpolate(x, size=input_shape, mode='bilinear', align_corners=False)
         return x
 
