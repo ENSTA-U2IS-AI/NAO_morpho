@@ -175,6 +175,6 @@ class NAO_deeplabv3plus(nn.Module):
         c_outs = self.NAO_deeplabv3plus(x)
         results = self.decoder[0](c_outs,size)
         results = self.score(results)
-        results = F.interpolate(results, size=input_shape, mode='bilinear', align_corners=False)
+        results = F.interpolate(results, size=x.size()[2:4], mode='bilinear', align_corners=False)
         return results
 
