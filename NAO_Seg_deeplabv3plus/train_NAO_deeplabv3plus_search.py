@@ -342,7 +342,7 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
     return valid_acc_list
 
 
-def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob,device,metrics):
+def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob,device,metrics,scheduler):
     objs = utils.AvgrageMeter()
     denorm = utils_deeplabv3plus.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
     scaler = torch.cuda.amp.GradScaler()
@@ -391,6 +391,7 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
 
 
         global_step += 1
+        scheduler.step()
 
     return score, loss, global_step
 
@@ -772,13 +773,13 @@ def main():
             del tmp_model
 
         step = 0
-        scheduler = get_scheduler(optimizer, args.dataset)
+        # scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
             lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
             # Randomly sample an example to train
             train_miou, train_loss, step = child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, step, child_arch_pool,
-                                                     child_arch_pool_prob,device,metrics)
+                                                     child_arch_pool_prob,device,metrics,scheduler)
             scheduler.step()
             logging.info('train_miou %f', train_miou)
 
