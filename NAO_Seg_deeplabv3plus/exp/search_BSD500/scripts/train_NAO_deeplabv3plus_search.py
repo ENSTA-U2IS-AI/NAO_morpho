@@ -53,8 +53,8 @@ parser.add_argument('--num_classes', type=int, default=19)
 parser.add_argument('--child_batch_size', type=int, default=2)
 parser.add_argument('--cityscapes_batch_size', type=int, default=2)
 parser.add_argument('--child_eval_batch_size', type=int, default=10)#50
-parser.add_argument('--cityscapes_val_batch_size', type=int, default=10)#50
-parser.add_argument('--child_epochs', type=int, default=50)  # 60
+parser.add_argument('--cityscapes_val_batch_size', type=int, default=2)#50
+parser.add_argument('--child_epochs', type=int, default=5)  # 60 50
 parser.add_argument('--child_layers', type=int, default=2)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=8)
@@ -77,9 +77,9 @@ parser.add_argument('--child_double_down_channel', type=bool, default=False)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=300)
+parser.add_argument('--controller_seed_arch', type=int, default=3)#300
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=100)
+parser.add_argument('--controller_new_arch', type=int, default=1)#100
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -229,9 +229,9 @@ def build_cityscapes_model(model_state_dict=None, optimizer_state_dict=None, **k
     ratio = kwargs.pop('ratio')
     train_dst, val_dst = get_dataset(args)
     train_queue = data.DataLoader(
-        train_dst, batch_size=args.cityscapes_batch_size, shuffle=True, num_workers=2)
+        train_dst, batch_size=args.cityscapes_batch_size, shuffle=True, num_workers=2, drop_last=True)
     valid_queue = data.DataLoader(
-        val_dst, batch_size=args.cityscapes_val_batch_size, shuffle=True, num_workers=2)
+        val_dst, batch_size=args.cityscapes_val_batch_size, shuffle=True, num_workers=2, drop_last=True)
     print("Dataset: %s, Train set: %d, Val set: %d" %
           (args.dataset, len(train_dst), len(val_dst)))
 
@@ -342,7 +342,7 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
     return valid_acc_list
 
 
-def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob,device,metrics):
+def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob,device,metrics,scheduler):
     objs = utils.AvgrageMeter()
     denorm = utils_deeplabv3plus.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
     scaler = torch.cuda.amp.GradScaler()
@@ -359,9 +359,9 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
     # for step, (input, target) in enumerate(train_queue):
     for i, (images, labels) in enumerate(train_queue):
         images = images.to(device, dtype=torch.float16)
-        labels = labels.to(device, dtype=torch.long)
-        print(labels.size())
-        exit()
+        labels = labels.to(device, dtype=torch.long)#([2, 513, 513])
+        # print(labels.size())
+        # exit()
 
         optimizer.zero_grad()
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
@@ -386,12 +386,14 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
         cur_itrs = cur_itrs+1
         if (cur_itrs) % 10 == 0:
             interval_loss = interval_loss / 10
-            logging.info(" Loss=%f MIOU=%f" , interval_loss,score)
+            logging.info(" Loss=%f MIOU=%f" , interval_loss,score['Mean IoU'])
             interval_loss = 0.0
 
+        #exit()
 
         global_step += 1
-
+        scheduler.step()
+    #exit()
     return score, loss, global_step
 
 def child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool, metrics, ret_samples_ids=None):
@@ -412,7 +414,7 @@ def child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool, metr
             images = images.cuda()
             labels = labels.cuda()
 
-            outputs = model(images, targets.size()[2:4], arch, bn_train=False)
+            outputs = model(images, labels.size()[2:4], arch, bn_train=False)
             preds = outputs.detach().max(dim=1)[1].cpu().numpy()
             targets = labels.cpu().numpy()
 
@@ -421,9 +423,9 @@ def child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool, metr
 
             loss = criterion(outputs, labels).detach().cpu().numpy()
 
-            valid_acc_list.append(score)
+            valid_acc_list.append(score['Mean IoU'])
             if (i + 1) % 50 == 0:
-                logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score)
+                logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
 
     return valid_acc_list
 
@@ -519,21 +521,22 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
     for i, arch in enumerate(archs):
         metrics.reset()
         logging.info('Train and evaluate the {} arch'.format(i + 1))
-        model = NAO_deeplabv3plus(args, classes=args.num_class, nodes=args.child_nodes)
+        model = NAO_deeplabv3plus(args, classes=args.num_class, arch=arch)
         model = model.cuda()
         model.train()
 
         # Set up optimizer
         optimizer = torch.optim.SGD(params=[
-            {'params': model.backbone.parameters(), 'lr': 0.1 * args.lr},
-            {'params': model.classifier.parameters(), 'lr': args.lr},
+            {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.lr},
+            {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.lr},
         ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
         if args.lr_policy == 'poly':
-            scheduler = utils.PolyLR(optimizer, args.total_itrs, power=0.9)
+            scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
         elif args.lr_policy == 'step':
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
         global_step = 0
+        interval_loss = 0
         for e in range(10):
             # set the mode of model to train
             model.train()
@@ -546,7 +549,7 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
                 optimizer.zero_grad()
                 # Casts operations to mixed precision
                 with torch.cuda.amp.autocast():
-                    outputs = model(images, labels.size()[2:4], arch, bn_train=False)
+                    outputs = model(images, labels.size()[2:4])
                     loss = criterion(outputs, labels)
 
                 scaler.scale(loss).backward()
@@ -574,7 +577,7 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
                 images = images.cuda()
                 labels = labels.cuda()
 
-                outputs = model(images, labels.size()[2:4], arch, bn_train=False)
+                outputs = model(images, labels.size()[2:4])
                 preds = outputs.detach().max(dim=1)[1].cpu().numpy()
                 targets = labels.cpu().numpy()
 
@@ -584,8 +587,8 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
                 loss = criterion(outputs, labels).detach().cpu().numpy()
 
                 if (step + 1) % 10 == 0:
-                    logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score)
-        res.append(score)
+                    logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
+        res.append(score['Mean IoU'])
 
     return res
 
@@ -772,19 +775,19 @@ def main():
             del tmp_model
 
         step = 0
-        scheduler = get_scheduler(optimizer, args.dataset)
+        # scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
             lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
             # Randomly sample an example to train
             train_miou, train_loss, step = child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, step, child_arch_pool,
-                                                     child_arch_pool_prob,device,metrics)
+                                                     child_arch_pool_prob,device,metrics,scheduler)
             scheduler.step()
-            logging.info('train_miou %f', train_miou)
+            logging.info('train_miou %f', train_miou['Mean IoU'])
 
         logging.info("Evaluate seed archs")
         arch_pool += child_arch_pool
-        arch_pool_valid_acc = child_valid_NAO_deeplabv3plus_cityscapes(valid_queue, model, arch_pool,metrics)
+        arch_pool_valid_acc = child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool,metrics)
 
         arch_pool_valid_acc_sorted_indices = np.argsort(arch_pool_valid_acc)[::-1]
         arch_pool = [arch_pool[i] for i in arch_pool_valid_acc_sorted_indices]

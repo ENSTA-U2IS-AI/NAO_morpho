@@ -147,7 +147,7 @@ class NAO_deeplabv3plus_size(nn.Module):
 
 class NAO_deeplabv3plus(nn.Module):
     def __init__(self, args, classes, arch, pretrained=True, res='deeplabv3plus_resnet50'):
-        super(NAOMSCBC, self).__init__()
+        super(NAO_deeplabv3plus, self).__init__()
         self.classes = classes
         self.decoder = nn.ModuleList()
 
