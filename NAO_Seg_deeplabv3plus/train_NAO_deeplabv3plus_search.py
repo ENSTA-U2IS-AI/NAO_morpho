@@ -262,7 +262,8 @@ def build_cityscapes_model(model_state_dict=None, optimizer_state_dict=None, **k
         optimizer.load_state_dict(optimizer_state_dict)
 
     # return train_queue, valid_queue, model, optimizer, scheduler
-    return train_queue, valid_queue, model, optimizer
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min, epoch)
+    return train_queue, valid_queue, model, optimizer,scheduler
 
 
 def get_scheduler(optimizer, datasets):
@@ -525,14 +526,16 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
 
         # Set up optimizer
         optimizer = torch.optim.SGD(params=[
-            {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.lr},
-            {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.lr},
+            {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.child_lr_max},
+            {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.child_lr_max},
         ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
-        if args.lr_policy == 'poly':
-            scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
-        elif args.lr_policy == 'step':
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+        # if args.lr_policy == 'poly':
+        #     scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
+        # elif args.lr_policy == 'step':
+        #     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, args.child_lr_min)
         global_step = 0
         interval_loss = 0
         for e in range(10):
@@ -721,7 +724,7 @@ def main():
 
     # load network model
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, = build_fn(ratio=0.9,
+    train_queue, valid_queue, model, optimizer, scheduler = build_fn(ratio=0.9,
                                                                       epoch=-1)
 
     # initial NAO algorithm model
@@ -762,7 +765,7 @@ def main():
             del tmp_model
 
         step = 0
-        scheduler = get_scheduler(optimizer, args.dataset)
+        # scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
             lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
