@@ -29,7 +29,8 @@ import utils_deeplabv3plus
 parser = argparse.ArgumentParser(description='NAO Search')
 
 # Basic model parameters.
-parser.add_argument("--data_root", type=str, default='./datasets/leftImg8bit_trainvaltest',
+#parser.add_argument("--data_root", type=str, default='./datasets/leftImg8bit_trainvaltest',
+parser.add_argument("--data_root", type=str, default='/home/student/workspace_Yufei/CityScapes/NAO_Cityscapes',
                         help="path to Dataset")
 parser.add_argument("--lr", type=float, default=0.01,
                         help="learning rate (default: 0.01)")

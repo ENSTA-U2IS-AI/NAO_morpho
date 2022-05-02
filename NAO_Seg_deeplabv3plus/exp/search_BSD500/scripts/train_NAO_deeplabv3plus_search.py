@@ -29,7 +29,8 @@ import utils_deeplabv3plus
 parser = argparse.ArgumentParser(description='NAO Search')
 
 # Basic model parameters.
-parser.add_argument("--data_root", type=str, default='./datasets/leftImg8bit_trainvaltest',
+#parser.add_argument("--data_root", type=str, default='./datasets/leftImg8bit_trainvaltest',
+parser.add_argument("--data_root", type=str, default='/home/student/workspace_Yufei/CityScapes/NAO_Cityscapes',
                         help="path to Dataset")
 parser.add_argument("--lr", type=float, default=0.01,
                         help="learning rate (default: 0.01)")
@@ -246,29 +247,32 @@ def build_cityscapes_model(model_state_dict=None, optimizer_state_dict=None, **k
 
     # Set up optimizer
     optimizer = torch.optim.SGD(params=[
-        {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.lr},
-        {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.lr},
+        {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.child_lr_max},
+        {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.child_lr_max},
     ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
-    if args.lr_policy == 'poly':
-        scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
-    elif args.lr_policy == 'step':
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+    # if args.lr_policy == 'poly':
+    #     scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
+    # elif args.lr_policy == 'step':
+    #     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
     if model_state_dict is not None:
         model.load_state_dict(model_state_dict)
     if optimizer_state_dict is not None:
         optimizer.load_state_dict(optimizer_state_dict)
 
-    return train_queue, valid_queue, model, optimizer, scheduler
+    # return train_queue, valid_queue, model, optimizer, scheduler
+    return train_queue, valid_queue, model, optimizer
 
 
-# def get_scheduler(optimizer, datasets):
-#     if 'BSD500' in datasets:
-#         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min)
-#     else:
-#         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.child_decay_period, gamma=args.child_gamma)
-#     return scheduler
+def get_scheduler(optimizer, datasets):
+    if 'BSD500' in datasets:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min)
+    elif 'cityscapes' in datasets:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min)
+    else:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.child_decay_period, gamma=args.child_gamma)
+    return scheduler
 
 
 def child_train(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob, criterion=None):
@@ -360,8 +364,6 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
     for i, (images, labels) in enumerate(train_queue):
         images = images.to(device, dtype=torch.float16)
         labels = labels.to(device, dtype=torch.long)#([2, 513, 513])
-        # print(labels.size())
-        # exit()
 
         optimizer.zero_grad()
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
@@ -389,17 +391,13 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
             logging.info(" Loss=%f MIOU=%f" , interval_loss,score['Mean IoU'])
             interval_loss = 0.0
 
-        #exit()
-
         global_step += 1
         scheduler.step()
-    #exit()
+
     return score, loss, global_step
 
 def child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool, metrics, ret_samples_ids=None):
     valid_acc_list = []
-
-
     # set the mode of model to eval
     model.eval()
 
@@ -664,13 +662,6 @@ def nao_infer(queue, model, step, direction='+'):
         new_arch_list.extend(new_arch.data.squeeze().tolist())
     return new_arch_list
 
-def get_scheduler(optimizer, dataset):
-    if 'BSD500' in dataset:
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min)
-    else:
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.child_decay_period, gamma=args.child_gamma)
-    return scheduler
-
 
 def main():
     if not torch.cuda.is_available():
@@ -730,7 +721,7 @@ def main():
 
     # load network model
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, scheduler, = build_fn(ratio=0.9,
+    train_queue, valid_queue, model, optimizer, = build_fn(ratio=0.9,
                                                                       epoch=-1)
 
     # initial NAO algorithm model
@@ -766,16 +757,12 @@ def main():
 
         child_arch_pool_prob = []
         for arch in child_arch_pool:
-            # tmp_model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels,
-            #                        keep_prob=args.child_keep_prob, nodes=args.child_nodes,
-            #                        use_aux_head=args.child_use_aux_head, arch=arch,
-            #                        double_down_channel=args.child_double_down_channel)
             tmp_model = NAO_deeplabv3plus_size(args,classes=args.num_class,arch=arch)
             child_arch_pool_prob.append(utils.count_parameters_in_MB(tmp_model))
             del tmp_model
 
         step = 0
-        # scheduler = get_scheduler(optimizer, args.dataset)
+        scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
             lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
