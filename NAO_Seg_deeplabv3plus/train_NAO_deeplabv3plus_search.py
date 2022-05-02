@@ -359,7 +359,9 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
     # for step, (input, target) in enumerate(train_queue):
     for i, (images, labels) in enumerate(train_queue):
         images = images.to(device, dtype=torch.float16)
-        labels = labels.to(device, dtype=torch.long)
+        labels = labels.to(device, dtype=torch.long)#([2, 513, 513])
+        # print(labels.size())
+        # exit()
 
         optimizer.zero_grad()
         arch = utils.sample_arch(arch_pool, arch_pool_prob)
