@@ -15,47 +15,23 @@ from model.NAO_Unet import NASUNetBSD
 from search.NAO_Unet_search import NASUNetSegmentationWS
 from model.decoder import NAOMSCBC,NAOMSCBC_decoder_size
 from search.decoder_search import NAOMSCBC_search
-from model.NAO_deeplabv3plus import NAO_deeplabv3plus
-from search.NAO_deeplabv3plus_search import NAO_deeplabv3plus_search
-from model.NAO_deeplabv3plus import NAO_deeplabv3plus_size
 from ops.operations import OPERATIONS_search_with_mor, OPERATIONS_search_without_mor
 from controller import NAO
-from metrics import StreamSegMetrics
-from utils_deeplabv3plus import ext_transforms as et
-from utils import Cityscapes
-from torch.utils import data
-import utils_deeplabv3plus
 
 parser = argparse.ArgumentParser(description='NAO Search')
 
 # Basic model parameters.
-#parser.add_argument("--data_root", type=str, default='./datasets/leftImg8bit_trainvaltest',
-parser.add_argument("--data_root", type=str, default='/home/student/workspace_Yufei/CityScapes/NAO_Cityscapes',
-                        help="path to Dataset")
-parser.add_argument("--lr", type=float, default=0.01,
-                        help="learning rate (default: 0.01)")
-parser.add_argument("--weight_decay", type=float, default=1e-4,
-                    help='weight decay (default: 1e-4)')
-parser.add_argument("--total_itrs", type=int, default=30e3,
-                    help="epoch number (default: 30k)")
-parser.add_argument("--gpu_id", type=str, default='0',
-                    help="GPU ID")
 parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
 parser.add_argument('--data', type=str, default='data')
-parser.add_argument('--dataset', type=str, default='cityscapes',
-                        choices=['BSD500', 'cityscapes'], help='Name of datasets')
-parser.add_argument("--output_stride", type=int, default=16, choices=[8, 16])
+parser.add_argument('--datasets', type=str, default='BSD500')
 parser.add_argument('--zip_file', action='store_true', default=False)
 parser.add_argument('--lazy_load', action='store_true', default=False)
 parser.add_argument('--output_dir', type=str, default='models')
 parser.add_argument('--search_space', type=str, default='with_mor_ops', choices=['with_mor_ops', 'without_mor_ops'])
 parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--num_classes', type=int, default=19)
 parser.add_argument('--child_batch_size', type=int, default=2)
-parser.add_argument('--cityscapes_batch_size', type=int, default=2)
 parser.add_argument('--child_eval_batch_size', type=int, default=10)#50
-parser.add_argument('--cityscapes_val_batch_size', type=int, default=2)#50
-parser.add_argument('--child_epochs', type=int, default=50)  # 60 50
+parser.add_argument('--child_epochs', type=int, default=50)  # 60
 parser.add_argument('--child_layers', type=int, default=2)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=8)
@@ -63,10 +39,6 @@ parser.add_argument('--child_cutout_size', type=int, default=None)
 parser.add_argument('--child_grad_bound', type=float, default=5.0)
 parser.add_argument('--child_lr_max', type=float, default=0.025)
 parser.add_argument('--child_lr_min', type=float, default=0.001)
-parser.add_argument("--lr_policy", type=str, default='poly', choices=['poly', 'step'],
-                    help="learning rate scheduler policy")
-parser.add_argument("--step_size", type=int, default=10000)
-parser.add_argument("--crop_size", type=int, default=513)
 parser.add_argument('--child_keep_prob', type=float, default=1)
 parser.add_argument('--child_drop_path_keep_prob', type=float, default=None)
 parser.add_argument('--child_l2_reg', type=float, default=5e-4)
@@ -78,9 +50,9 @@ parser.add_argument('--child_double_down_channel', type=bool, default=False)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=150)#300
+parser.add_argument('--controller_seed_arch', type=int, default=300)
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=50)#100
+parser.add_argument('--controller_new_arch', type=int, default=100)
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -152,8 +124,6 @@ def cross_entropy_loss(prediction, label):
 def get_builder(dataset):
     if dataset == 'BSD500':
         return build_BSD_500
-    elif dataset == 'cityscapes':
-        return build_cityscapes_model
 
 
 def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
@@ -195,81 +165,9 @@ def build_BSD_500(model_state_dict=None, optimizer_state_dict=None, **kwargs):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min, epoch)
     return train_queue, valid_queue, model, optimizer, scheduler
 
-def get_dataset(args):
-    """ Dataset And Augmentation
-    """
-    if args.dataset == 'cityscapes':
-        train_transform = et.ExtCompose([
-            #et.ExtResize( 512 ),
-            et.ExtRandomCrop(size=(args.crop_size, args.crop_size)),
-            et.ExtColorJitter( brightness=0.5, contrast=0.5, saturation=0.5 ),
-            et.ExtRandomHorizontalFlip(),
-            et.ExtToTensor(),
-            et.ExtNormalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225]),
-        ])
 
-        val_transform = et.ExtCompose([
-            #et.ExtResize( 512 ),
-            et.ExtToTensor(),
-            et.ExtNormalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225]),
-        ])
-
-        train_dst = Cityscapes(root=args.data_root,
-                               split='train', transform=train_transform)
-        val_dst = Cityscapes(root=args.data_root,
-                             split='val', transform=val_transform)
-        return train_dst, val_dst
-    else:
-        logging.info("Error for load cityscapes!")
-        return
-
-def build_cityscapes_model(model_state_dict=None, optimizer_state_dict=None, **kwargs):
-    epoch = kwargs.pop('epoch')
-    ratio = kwargs.pop('ratio')
-    train_dst, val_dst = get_dataset(args)
-    train_queue = data.DataLoader(
-        train_dst, batch_size=args.cityscapes_batch_size, shuffle=True, num_workers=2, drop_last=True)
-    valid_queue = data.DataLoader(
-        val_dst, batch_size=args.cityscapes_val_batch_size, shuffle=True, num_workers=2, drop_last=True)
-    print("Dataset: %s, Train set: %d, Val set: %d" %
-          (args.dataset, len(train_dst), len(val_dst)))
-
-    model = NAO_deeplabv3plus_search(args, classes=args.num_class, nodes=args.child_nodes)
-
-    model = model.cuda()
-
-    # Set up metrics
-    metrics = StreamSegMetrics(args.num_classes)
-
-    logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
-
-    # Set up optimizer
-    optimizer = torch.optim.SGD(params=[
-        {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.child_lr_max},
-        {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.child_lr_max},
-    ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
-
-    # if args.lr_policy == 'poly':
-    #     scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
-    # elif args.lr_policy == 'step':
-    #     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
-
-    if model_state_dict is not None:
-        model.load_state_dict(model_state_dict)
-    if optimizer_state_dict is not None:
-        optimizer.load_state_dict(optimizer_state_dict)
-
-    # return train_queue, valid_queue, model, optimizer, scheduler
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min, epoch)
-    return train_queue, valid_queue, model, optimizer,scheduler
-
-
-def get_scheduler(optimizer, datasets):
-    if 'BSD500' in datasets:
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min)
-    elif 'cityscapes' in datasets:
+def get_scheduler(optimizer, dataset):
+    if 'BSD500' in dataset:
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min)
     else:
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.child_decay_period, gamma=args.child_gamma)
@@ -346,87 +244,6 @@ def child_valid(valid_queue, model, arch_pool, criterion=None):
 
     return valid_acc_list
 
-
-def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, global_step, arch_pool, arch_pool_prob,device,metrics,scheduler):
-    objs = utils.AvgrageMeter()
-    denorm = utils_deeplabv3plus.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
-    scaler = torch.cuda.amp.GradScaler()
-
-    torch.cuda.empty_cache()
-    # set the mode of model to train
-    model.train()
-
-    interval_loss = 0
-    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
-    metrics.reset()
-    cur_itrs = 0
-
-    # for step, (input, target) in enumerate(train_queue):
-    for i, (images, labels) in enumerate(train_queue):
-        images = images.to(device, dtype=torch.float16)
-        labels = labels.to(device, dtype=torch.long)#([2, 513, 513])
-
-        optimizer.zero_grad()
-        arch = utils.sample_arch(arch_pool, arch_pool_prob)
-        # Casts operations to mixed precision
-        with torch.cuda.amp.autocast():
-            outputs = model(images, labels.size()[2:4],arch, bn_train=False)
-            loss = criterion(outputs, labels)
-
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
-
-        preds = outputs.detach().max(dim=1)[1].cpu().numpy()
-        targets = labels.cpu().numpy()
-
-        metrics.update(targets, preds)
-        score = metrics.get_results()
-
-        np_loss = loss.detach().cpu().numpy()
-        interval_loss += np_loss
-
-        cur_itrs = cur_itrs+1
-        if (cur_itrs) % 100 == 0:
-            interval_loss = interval_loss / 10
-            logging.info(" Loss=%f MIOU=%f" , interval_loss,score['Mean IoU'])
-            interval_loss = 0.0
-
-        global_step += 1
-        scheduler.step()
-
-    return score, loss, global_step
-
-def child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool, metrics, ret_samples_ids=None):
-    valid_acc_list = []
-    # set the mode of model to eval
-    model.eval()
-
-    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
-
-    with torch.no_grad():
-        for i, arch in enumerate(arch_pool):
-            metrics.reset()
-            # for (inputs, targets) in valid_queue:
-
-            images, labels = next(iter(valid_queue))
-            images = images.cuda()
-            labels = labels.cuda()
-
-            outputs = model(images, labels.size()[2:4], arch, bn_train=False)
-            preds = outputs.detach().max(dim=1)[1].cpu().numpy()
-            targets = labels.cpu().numpy()
-
-            metrics.update(targets, preds)
-            score = metrics.get_results()
-
-            loss = criterion(outputs, labels).detach().cpu().numpy()
-
-            valid_acc_list.append(score['Mean IoU'])
-            if (i + 1) % 200 == 0:
-                logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
-
-    return valid_acc_list
 
 def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
     res = []
@@ -509,90 +326,6 @@ def train_and_evaluate_top_on_BSD500(archs, train_queue, valid_queue):
         res.append(ODS.avg)
     return res
 
-def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, valid_queue, device,metrics):
-    res = []
-
-
-    criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
-    scaler = torch.cuda.amp.GradScaler()
-
-
-    for i, arch in enumerate(archs):
-        metrics.reset()
-        logging.info('Train and evaluate the {} arch'.format(i + 1))
-        model = NAO_deeplabv3plus(args, classes=args.num_class, arch=arch)
-        model = model.cuda()
-        model.train()
-
-        # Set up optimizer
-        optimizer = torch.optim.SGD(params=[
-            {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.child_lr_max},
-            {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.child_lr_max},
-        ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
-
-        # if args.lr_policy == 'poly':
-        #     scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
-        # elif args.lr_policy == 'step':
-        #     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
-
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, args.child_lr_min)
-        global_step = 0
-        interval_loss = 0
-        for e in range(10):
-            # set the mode of model to train
-            model.train()
-
-            cur_itrs = 0
-            for i,(images, labels) in enumerate(train_queue):
-                images = images.to(device, dtype=torch.float16).requires_grad_()
-                labels = labels.to(device, dtype=torch.long)
-
-                optimizer.zero_grad()
-                # Casts operations to mixed precision
-                with torch.cuda.amp.autocast():
-                    outputs = model(images, labels.size()[2:4])
-                    loss = criterion(outputs, labels)
-
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-
-                np_loss = loss.detach().cpu().numpy()
-                interval_loss += np_loss
-
-                if (cur_itrs) % 100 == 0:
-                    interval_loss = interval_loss / 10
-                    logging.info(" Loss=%f", interval_loss)
-                    interval_loss = 0.0
-                cur_itrs = cur_itrs+1
-
-            scheduler.step()
-
-        metrics.reset()
-        # set the mode of model to eval
-        model.eval()
-
-        with torch.no_grad():
-            for step, (images, labels ) in enumerate(valid_queue):
-
-                images = images.cuda()
-                labels = labels.cuda()
-
-                outputs = model(images, labels.size()[2:4])
-                preds = outputs.detach().max(dim=1)[1].cpu().numpy()
-                targets = labels.cpu().numpy()
-
-                metrics.update(targets, preds)
-                score = metrics.get_results()
-
-                loss = criterion(outputs, labels).detach().cpu().numpy()
-
-                if (step + 1) % 200 == 0:
-                    logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
-        res.append(score['Mean IoU'])
-
-    return res
-
 
 def nao_train(train_queue, model, optimizer):
     objs = utils.AvgrageMeter()
@@ -671,9 +404,6 @@ def main():
         logging.info('no gpu device available')
         sys.exit(1)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     torch.cuda.current_device()
     torch.cuda.device_count()
     random.seed(args.seed)
@@ -687,12 +417,9 @@ def main():
 
     if args.dataset == 'BSD500':
         args.num_class = 1
-    elif args.dataset == 'cityscapes':
-        args.num_class = 19
     else:
         args.num_class = None
 
-    metrics = StreamSegMetrics(args.num_classes)
     if args.search_space == 'with_mor_ops':
         OPERATIONS = OPERATIONS_search_with_mor
     elif args.search_space == 'without_mor_ops':
@@ -724,7 +451,7 @@ def main():
 
     # load network model
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, scheduler = build_fn(ratio=0.9,
+    train_queue, valid_queue, model, optimizer, scheduler, = build_fn(ratio=0.9,
                                                                       epoch=-1)
 
     # initial NAO algorithm model
@@ -760,24 +487,28 @@ def main():
 
         child_arch_pool_prob = []
         for arch in child_arch_pool:
-            tmp_model = NAO_deeplabv3plus_size(args,classes=args.num_class,arch=arch)
+            # tmp_model = NASUNetBSD(args, args.num_class, depth=args.child_layers, c=args.child_channels,
+            #                        keep_prob=args.child_keep_prob, nodes=args.child_nodes,
+            #                        use_aux_head=args.child_use_aux_head, arch=arch,
+            #                        double_down_channel=args.child_double_down_channel)
+            tmp_model = NAOMSCBC_decoder_size(args,classes=args.num_class,arch=arch,channels=42,res='18')
             child_arch_pool_prob.append(utils.count_parameters_in_MB(tmp_model))
             del tmp_model
 
         step = 0
-        # scheduler = get_scheduler(optimizer, args.dataset)
+        scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
             lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
             # Randomly sample an example to train
-            train_miou, train_loss, step = child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, step, child_arch_pool,
-                                                     child_arch_pool_prob,device,metrics,scheduler)
+            train_acc, train_obj, step = child_train(train_queue, model, optimizer, step, child_arch_pool,
+                                                     child_arch_pool_prob)
             scheduler.step()
-            logging.info('train_miou %f', train_miou['Mean IoU'])
+            logging.info('train_ODS %f', train_acc)
 
         logging.info("Evaluate seed archs")
         arch_pool += child_arch_pool
-        arch_pool_valid_acc = child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool,metrics)
+        arch_pool_valid_acc = child_valid(valid_queue, model, arch_pool)
 
         arch_pool_valid_acc_sorted_indices = np.argsort(arch_pool_valid_acc)[::-1]
         arch_pool = [arch_pool[i] for i in arch_pool_valid_acc_sorted_indices]
@@ -873,7 +604,7 @@ def main():
     # reranking top 5
     top_archs = arch_pool[:5]
     print(top_archs)
-    top_archs_perf = train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(top_archs, train_queue, valid_queue,device,metrics)
+    top_archs_perf = train_and_evaluate_top_on_BSD500(top_archs, train_queue, valid_queue)
     top_archs_sorted_indices = np.argsort(top_archs_perf)[::-1]
     top_archs = [top_archs[i] for i in top_archs_sorted_indices]
     top_archs_perf = [top_archs_perf[i] for i in top_archs_sorted_indices]

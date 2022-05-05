@@ -216,6 +216,7 @@ def _resnet(arch, block, layers, pretrained, progress, **kwargs):
         state_dict = load_state_dict_from_url(model_urls[arch],
                                               progress=progress)
         model.load_state_dict(state_dict)
+        #print('[loar pretrained resnet50 on ImageNet]')
     return model
 
 

@@ -55,7 +55,7 @@ parser.add_argument('--child_batch_size', type=int, default=2)
 parser.add_argument('--cityscapes_batch_size', type=int, default=2)
 parser.add_argument('--child_eval_batch_size', type=int, default=10)#50
 parser.add_argument('--cityscapes_val_batch_size', type=int, default=2)#50
-parser.add_argument('--child_epochs', type=int, default=50)  # 60 50
+parser.add_argument('--child_epochs', type=int, default=5)  # 60 50
 parser.add_argument('--child_layers', type=int, default=2)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=8)
@@ -78,9 +78,9 @@ parser.add_argument('--child_double_down_channel', type=bool, default=False)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=150)#300
+parser.add_argument('--controller_seed_arch', type=int, default=3)#300
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=50)#100
+parser.add_argument('--controller_new_arch', type=int, default=1)#100
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -387,7 +387,7 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
         interval_loss += np_loss
 
         cur_itrs = cur_itrs+1
-        if (cur_itrs) % 100 == 0:
+        if (cur_itrs) % 10 == 0:
             interval_loss = interval_loss / 10
             logging.info(" Loss=%f MIOU=%f" , interval_loss,score['Mean IoU'])
             interval_loss = 0.0
@@ -423,7 +423,7 @@ def child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool, metr
             loss = criterion(outputs, labels).detach().cpu().numpy()
 
             valid_acc_list.append(score['Mean IoU'])
-            if (i + 1) % 200 == 0:
+            if (i + 1) % 50 == 0:
                 logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
 
     return valid_acc_list
@@ -560,7 +560,7 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
                 np_loss = loss.detach().cpu().numpy()
                 interval_loss += np_loss
 
-                if (cur_itrs) % 100 == 0:
+                if (cur_itrs) % 10 == 0:
                     interval_loss = interval_loss / 10
                     logging.info(" Loss=%f", interval_loss)
                     interval_loss = 0.0
@@ -587,7 +587,7 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
 
                 loss = criterion(outputs, labels).detach().cpu().numpy()
 
-                if (step + 1) % 200 == 0:
+                if (step + 1) % 10 == 0:
                     logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
         res.append(score['Mean IoU'])
 

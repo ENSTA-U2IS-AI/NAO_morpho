@@ -55,7 +55,7 @@ parser.add_argument('--child_batch_size', type=int, default=2)
 parser.add_argument('--cityscapes_batch_size', type=int, default=2)
 parser.add_argument('--child_eval_batch_size', type=int, default=10)#50
 parser.add_argument('--cityscapes_val_batch_size', type=int, default=2)#50
-parser.add_argument('--child_epochs', type=int, default=5)  # 60 50
+parser.add_argument('--child_epochs', type=int, default=50)  # 60 50
 parser.add_argument('--child_layers', type=int, default=2)
 parser.add_argument('--child_nodes', type=int, default=5)
 parser.add_argument('--child_channels', type=int, default=8)
@@ -78,9 +78,9 @@ parser.add_argument('--child_double_down_channel', type=bool, default=False)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=3)#300
+parser.add_argument('--controller_seed_arch', type=int, default=100)#300
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=1)#100
+parser.add_argument('--controller_new_arch', type=int, default=30)#100
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
@@ -262,7 +262,8 @@ def build_cityscapes_model(model_state_dict=None, optimizer_state_dict=None, **k
         optimizer.load_state_dict(optimizer_state_dict)
 
     # return train_queue, valid_queue, model, optimizer, scheduler
-    return train_queue, valid_queue, model, optimizer
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.child_epochs, args.child_lr_min, epoch)
+    return train_queue, valid_queue, model, optimizer,scheduler
 
 
 def get_scheduler(optimizer, datasets):
@@ -386,7 +387,7 @@ def child_train_NAO_deeplabv3plus_cityscapes(train_queue, model, optimizer, glob
         interval_loss += np_loss
 
         cur_itrs = cur_itrs+1
-        if (cur_itrs) % 10 == 0:
+        if (cur_itrs) % 100 == 0:
             interval_loss = interval_loss / 10
             logging.info(" Loss=%f MIOU=%f" , interval_loss,score['Mean IoU'])
             interval_loss = 0.0
@@ -422,7 +423,7 @@ def child_valid_NAO_deeplabv3plus_cityscapes(model, valid_queue, arch_pool, metr
             loss = criterion(outputs, labels).detach().cpu().numpy()
 
             valid_acc_list.append(score['Mean IoU'])
-            if (i + 1) % 50 == 0:
+            if (i + 1) % 200 == 0:
                 logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
 
     return valid_acc_list
@@ -525,14 +526,16 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
 
         # Set up optimizer
         optimizer = torch.optim.SGD(params=[
-            {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.lr},
-            {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.lr},
+            {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.child_lr_max},
+            {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.child_lr_max},
         ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
-        if args.lr_policy == 'poly':
-            scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
-        elif args.lr_policy == 'step':
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+        # if args.lr_policy == 'poly':
+        #     scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
+        # elif args.lr_policy == 'step':
+        #     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
+
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 10, args.child_lr_min)
         global_step = 0
         interval_loss = 0
         for e in range(10):
@@ -557,7 +560,7 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
                 np_loss = loss.detach().cpu().numpy()
                 interval_loss += np_loss
 
-                if (cur_itrs) % 10 == 0:
+                if (cur_itrs) % 100 == 0:
                     interval_loss = interval_loss / 10
                     logging.info(" Loss=%f", interval_loss)
                     interval_loss = 0.0
@@ -584,7 +587,7 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
 
                 loss = criterion(outputs, labels).detach().cpu().numpy()
 
-                if (step + 1) % 10 == 0:
+                if (step + 1) % 200 == 0:
                     logging.info('Valid arch %s\n loss %.2f MIOU %f', ' '.join(map(str, arch[0])), loss, score['Mean IoU'])
         res.append(score['Mean IoU'])
 
@@ -721,7 +724,7 @@ def main():
 
     # load network model
     build_fn = get_builder(args.dataset)
-    train_queue, valid_queue, model, optimizer, = build_fn(ratio=0.9,
+    train_queue, valid_queue, model, optimizer, scheduler = build_fn(ratio=0.9,
                                                                       epoch=-1)
 
     # initial NAO algorithm model
@@ -762,7 +765,7 @@ def main():
             del tmp_model
 
         step = 0
-        scheduler = get_scheduler(optimizer, args.dataset)
+        # scheduler = get_scheduler(optimizer, args.dataset)
         for epoch in range(1, args.child_epochs + 1):
             lr = scheduler.get_last_lr()[0]
             logging.info('epoch %d lr %e', epoch, lr)
