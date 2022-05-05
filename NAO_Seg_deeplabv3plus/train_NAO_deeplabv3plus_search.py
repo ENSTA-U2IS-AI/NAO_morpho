@@ -249,6 +249,8 @@ def build_cityscapes_model(model_state_dict=None, optimizer_state_dict=None, **k
     optimizer = torch.optim.SGD(params=[
         {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.child_lr_max},
         {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.child_lr_max},
+        {'params': model.decoder.parameters(), 'lr': args.lr},
+        {'params': model.score.parameters(), 'lr': args.lr},
     ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
     # if args.lr_policy == 'poly':
@@ -528,6 +530,8 @@ def train_and_evaluate_top_on_NAO_deeplabv3plus_cityscapes(archs, train_queue, v
         optimizer = torch.optim.SGD(params=[
             {'params': model.NAO_deeplabv3plus.backbone.parameters(), 'lr': 0.1 * args.child_lr_max},
             {'params': model.NAO_deeplabv3plus.classifier.parameters(), 'lr': args.child_lr_max},
+            {'params': model.decoder.parameters(), 'lr': args.lr},
+            {'params': model.score.parameters(), 'lr': args.lr},
         ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
         # if args.lr_policy == 'poly':
