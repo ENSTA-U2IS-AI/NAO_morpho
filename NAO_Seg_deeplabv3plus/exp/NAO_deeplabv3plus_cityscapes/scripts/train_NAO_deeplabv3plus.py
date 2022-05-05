@@ -156,7 +156,7 @@ def valid(args,  model, valid_queue, device, metrics, criterion=None):
     if args.save_val_results:
         if not os.path.exists('results'):
             os.mkdir('results')
-        denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406],
+        denorm = utils_deeplabv3plus.Denormalize(mean=[0.485, 0.456, 0.406],
                                    std=[0.229, 0.224, 0.225])
         img_id = 0
 
@@ -268,7 +268,7 @@ def build_NAO_deeplabv3plus_cityscapes(model_state_dict, optimizer_state_dict, *
     model = NAO_deeplabv3plus(args,args.classes,args.arch)
     # if args.separable_conv and 'plus' in args.model:
     #     model.network.convert_to_separable_conv(model.classifier)
-    utils.set_bn_momentum(model.backbone, momentum=0.01)
+    utils_deeplabv3plus.set_bn_momentum(model.backbone, momentum=0.01)
 
     # Set up metrics
     metrics = StreamSegMetrics(args.num_classes)
@@ -289,14 +289,14 @@ def build_NAO_deeplabv3plus_cityscapes(model_state_dict, optimizer_state_dict, *
     ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
     if args.lr_policy == 'poly':
-        scheduler = utils.PolyLR(optimizer, args.total_itrs, power=0.9)
+        scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
     elif args.lr_policy == 'step':
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
     # Set up criterion
     # criterion = utils.get_loss(opts.loss_type)
     if args.loss_type == 'focal_loss':
-        criterion = utils.FocalLoss(ignore_index=255, size_average=True)
+        criterion = utils_deeplabv3plus.FocalLoss(ignore_index=255, size_average=True)
     elif args.loss_type == 'cross_entropy':
         criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
 
@@ -360,10 +360,10 @@ def main():
     # if model_state_dict is not None:
     #     model.load_state_dict(model_state_dict)
 
-    if torch.cuda.device_count() > 1:
-        logging.info("Use %d %s", torch.cuda.device_count(), "GPUs !")
-        model = nn.DataParallel(model)
-    model = model.cuda()
+    # if torch.cuda.device_count() > 1:
+    #     logging.info("Use %d %s", torch.cuda.device_count(), "GPUs !")
+    #     model = nn.DataParallel(model)
+    # model = model.cuda()
 
     # Set up optimizer
     optimizer = torch.optim.SGD(params=[
@@ -374,14 +374,14 @@ def main():
     ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
     if args.lr_policy == 'poly':
-        scheduler = utils.PolyLR(optimizer, args.total_itrs, power=0.9)
+        scheduler = utils_deeplabv3plus.PolyLR(optimizer, args.total_itrs, power=0.9)
     elif args.lr_policy == 'step':
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
     # Set up criterion
     # criterion = utils.get_loss(opts.loss_type)
     if args.loss_type == 'focal_loss':
-        criterion = utils.FocalLoss(ignore_index=255, size_average=True)
+        criterion = utils_deeplabv3plus.FocalLoss(ignore_index=255, size_average=True)
     elif args.loss_type == 'cross_entropy':
         criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
 
@@ -402,13 +402,13 @@ def main():
     cur_itrs = 0
     cur_epochs = 0
 
-    utils.mkdir('checkpoints')
+    utils_deeplabv3plus.mkdir('checkpoints')
     logging.info("[!] Retrain")
     model = nn.DataParallel(model)
     model.to(device)
 
     # ==========   Train Loop   ==========#
-    denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
+    denorm = utils_deeplabv3plus.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
 
     if args.test_only:
         model.eval()
