@@ -17,6 +17,10 @@ import utils_deeplabv3plus
 import os
 from utils_deeplabv3plus import ext_transforms as et
 from utils import Cityscapes
+from tqdm import tqdm
+from metrics import StreamSegMetrics
+import time
+from torch.utils import data
 
 parser = argparse.ArgumentParser()
 
@@ -24,7 +28,7 @@ def get_argparser():
     # Basic model parameters.
     parser.add_argument('--mode', type=str, default='train',
                         choices=['train', 'test'])
-    parser.add_argument("--data_root", type=str, default='./datasets/data',
+    parser.add_argument("--data_root", type=str, default='/home/student/workspace_Yufei/CityScapes/NAO_Cityscapes',
                             help="path to Dataset")
     parser.add_argument("--datasets", type=str, default='cityscapes',
                             choices=['BSD500', 'cityscapes'], help='Name of datasets')
@@ -37,7 +41,7 @@ def get_argparser():
                                  'deeplabv3_mobilenet', 'deeplabv3plus_mobilenet'], help='model name')
     parser.add_argument("--separable_conv", action='store_true', default=False,
                         help="apply separable conv to decoder and aspp")
-    parser.add_argument("--output_stride", type=int, default=16, choices=[8, 16])
+    parser.add_argument("--output_stride", type=int, default=8, choices=[8, 16])
     # Train Options
     parser.add_argument("--test_only", action='store_true', default=False)
     parser.add_argument("--save_val_results", action='store_true', default=False,
@@ -108,6 +112,7 @@ def get_argparser():
     parser.add_argument('--double_down_channel', type=bool, default=False)
     return parser
 
+args = get_argparser().parse_args()
 utils.create_exp_dir(args.output_dir, scripts_to_save=glob.glob('*.py'))
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
@@ -116,39 +121,10 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
 def get_dataset(args):
     """ Dataset And Augmentation
     """
-    if opts.dataset == 'voc':
-        train_transform = et.ExtCompose([
-            #et.ExtResize(size=opts.crop_size),
-            et.ExtRandomScale((0.5, 2.0)),
-            et.ExtRandomCrop(size=(opts.crop_size, opts.crop_size), pad_if_needed=True),
-            et.ExtRandomHorizontalFlip(),
-            et.ExtToTensor(),
-            et.ExtNormalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225]),
-        ])
-        if opts.crop_val:
-            val_transform = et.ExtCompose([
-                et.ExtResize(opts.crop_size),
-                et.ExtCenterCrop(opts.crop_size),
-                et.ExtToTensor(),
-                et.ExtNormalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]),
-            ])
-        else:
-            val_transform = et.ExtCompose([
-                et.ExtToTensor(),
-                et.ExtNormalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]),
-            ])
-        train_dst = VOCSegmentation(root=opts.data_root, year=opts.year,
-                                    image_set='train', download=opts.download, transform=train_transform)
-        val_dst = VOCSegmentation(root=opts.data_root, year=opts.year,
-                                  image_set='val', download=False, transform=val_transform)
-
-    if opts.dataset == 'cityscapes':
+    if args.dataset == 'cityscapes':
         train_transform = et.ExtCompose([
             #et.ExtResize( 512 ),
-            et.ExtRandomCrop(size=(opts.crop_size, opts.crop_size)),
+            et.ExtRandomCrop(size=(args.crop_size, args.crop_size)),
             et.ExtColorJitter( brightness=0.5, contrast=0.5, saturation=0.5 ),
             et.ExtRandomHorizontalFlip(),
             et.ExtToTensor(),
@@ -163,9 +139,9 @@ def get_dataset(args):
                             std=[0.229, 0.224, 0.225]),
         ])
 
-        train_dst = Cityscapes(root=opts.data_root,
+        train_dst = Cityscapes(root=args.data_root,
                                split='train', transform=train_transform)
-        val_dst = Cityscapes(root=opts.data_root,
+        val_dst = Cityscapes(root=args.data_root,
                              split='val', transform=val_transform)
     return train_dst, val_dst
 
@@ -194,15 +170,15 @@ def valid(args,  model, valid_queue, device, metrics, criterion=None):
 
             metrics.update(targets, preds)
 
-            loss = criterion(outputs, labels)
+            loss = criterion(outs, labels)
             np_loss = loss.detach().cpu().numpy()
             interval_loss += np_loss
 
         interval_loss = interval_loss/step
 
         score = metrics.get_results()
-        logging.info(" MIOU: %f loss: %e", score, interval_loss)
-    return ODS.avg
+        logging.info(" MIOU: %f loss: %e", score['Mean IoU'], interval_loss)
+    return score
 
 def get_builder(dataset):
     if dataset == 'BSD500':
@@ -280,21 +256,21 @@ def build_NAO_deeplabv3plus_cityscapes(model_state_dict, optimizer_state_dict, *
     # epoch = kwargs.pop('epoch')
     # i_iter = kwargs.pop('i_iter')
 
-    train_dst, val_dst = get_dataset(opts)
-    train_queue = data.DataLoader(
-        train_dst, batch_size=opts.batch_size, shuffle=True, num_workers=2)
-    val_loader = data.DataLoader(
-        val_dst, batch_size=opts.val_batch_size, shuffle=True, num_workers=2)
+    train_dst, val_dst = get_dataset(args)
+    train_queue = args.DataLoader(
+        train_dst, batch_size=args.batch_size, shuffle=True, num_workers=2)
+    val_loader = args.DataLoader(
+        val_dst, batch_size=args.val_batch_size, shuffle=True, num_workers=2)
     print("Dataset: %s, Train set: %d, Val set: %d" %
-          (opts.dataset, len(train_dst), len(val_dst)))
+          (args.dataset, len(train_dst), len(val_dst)))
 
     model = NAO_deeplabv3plus(args,args.classes,args.arch)
-    if args.separable_conv and 'plus' in opts.model:
-        network.convert_to_separable_conv(model.classifier)
+    # if args.separable_conv and 'plus' in args.model:
+    #     model.network.convert_to_separable_conv(model.classifier)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
 
     # Set up metrics
-    metrics = StreamSegMetrics(opts.num_classes)
+    metrics = StreamSegMetrics(args.num_classes)
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
     if model_state_dict is not None:
@@ -307,35 +283,35 @@ def build_NAO_deeplabv3plus_cityscapes(model_state_dict, optimizer_state_dict, *
 
     # Set up optimizer
     optimizer = torch.optim.SGD(params=[
-        {'params': model.backbone.parameters(), 'lr': 0.1 * opts.lr},
-        {'params': model.classifier.parameters(), 'lr': opts.lr},
-    ], lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+        {'params': model.backbone.parameters(), 'lr': 0.1 * args.lr},
+        {'params': model.classifier.parameters(), 'lr': args.lr},
+    ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
-    if opts.lr_policy == 'poly':
-        scheduler = utils.PolyLR(optimizer, opts.total_itrs, power=0.9)
-    elif opts.lr_policy == 'step':
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opts.step_size, gamma=0.1)
+    if args.lr_policy == 'poly':
+        scheduler = utils.PolyLR(optimizer, args.total_itrs, power=0.9)
+    elif args.lr_policy == 'step':
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
     # Set up criterion
     # criterion = utils.get_loss(opts.loss_type)
-    if opts.loss_type == 'focal_loss':
+    if args.loss_type == 'focal_loss':
         criterion = utils.FocalLoss(ignore_index=255, size_average=True)
-    elif opts.loss_type == 'cross_entropy':
+    elif args.loss_type == 'cross_entropy':
         criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
 
     return train_queue, model, optimizer
 
-def save_ckpt(path):
-        """ save current model
-        """
-        torch.save({
-            "cur_itrs": cur_itrs,
-            "model_state": model.module.state_dict(),
-            "optimizer_state": optimizer.state_dict(),
-            "scheduler_state": scheduler.state_dict(),
-            "best_score": best_score,
-        }, path)
-        print("Model saved as %s" % path)
+# def save_ckpt(path):
+#         """ save current model
+#         """
+#         torch.save({
+#             "cur_itrs": cur_itrs,
+#             "model_state": model.module.state_dict(),
+#             "optimizer_state": optimizer.state_dict(),
+#             "scheduler_state": scheduler.state_dict(),
+#             "best_score": best_score,
+#         }, path)
+#         print("Model saved as %s" % path)
 
 def main():
     args = get_argparser().parse_args()
@@ -344,7 +320,7 @@ def main():
     elif args.dataset.lower() == 'cityscapes':
         args.num_classes = 19
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = opts.gpu_id
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Device: %s" % device)
 
@@ -363,25 +339,25 @@ def main():
 
     logging.info("Args = %s", args)
 
-    train_dst, val_dst = get_dataset(opts)
-    train_queue = data.DataLoader(
-        train_dst, batch_size=opts.batch_size, shuffle=True, num_workers=2)
+    train_dst, val_dst = get_dataset(args)
+    train_loader = data.DataLoader(
+        train_dst, batch_size=args.batch_size, shuffle=True, num_workers=2)
     val_loader = data.DataLoader(
-        val_dst, batch_size=opts.val_batch_size, shuffle=True, num_workers=2)
+        val_dst, batch_size=args.val_batch_size, shuffle=True, num_workers=2)
     print("Dataset: %s, Train set: %d, Val set: %d" %
-          (opts.dataset, len(train_dst), len(val_dst)))
+          (args.dataset, len(train_dst), len(val_dst)))
 
     model = NAO_deeplabv3plus(args,args.classes,args.arch)
-    if args.separable_conv and 'plus' in opts.model:
-        network.convert_to_separable_conv(model.classifier)
+    # if args.separable_conv and 'plus' in args.model:
+    #     network.convert_to_separable_conv(model.classifier)
     utils.set_bn_momentum(model.backbone, momentum=0.01)
 
     # Set up metrics
-    metrics = StreamSegMetrics(opts.num_classes)
+    metrics = StreamSegMetrics(args.num_classes)
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
-    if model_state_dict is not None:
-        model.load_state_dict(model_state_dict)
+    # if model_state_dict is not None:
+    #     model.load_state_dict(model_state_dict)
 
     if torch.cuda.device_count() > 1:
         logging.info("Use %d %s", torch.cuda.device_count(), "GPUs !")
@@ -390,20 +366,20 @@ def main():
 
     # Set up optimizer
     optimizer = torch.optim.SGD(params=[
-        {'params': model.backbone.parameters(), 'lr': 0.1 * opts.lr},
-        {'params': model.classifier.parameters(), 'lr': opts.lr},
-    ], lr=opts.lr, momentum=0.9, weight_decay=opts.weight_decay)
+        {'params': model.backbone.parameters(), 'lr': 0.1 * args.lr},
+        {'params': model.classifier.parameters(), 'lr': args.lr},
+    ], lr=args.lr, momentum=0.9, weight_decay=args.weight_decay)
 
-    if opts.lr_policy == 'poly':
-        scheduler = utils.PolyLR(optimizer, opts.total_itrs, power=0.9)
-    elif opts.lr_policy == 'step':
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=opts.step_size, gamma=0.1)
+    if args.lr_policy == 'poly':
+        scheduler = utils.PolyLR(optimizer, args.total_itrs, power=0.9)
+    elif args.lr_policy == 'step':
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=0.1)
 
     # Set up criterion
     # criterion = utils.get_loss(opts.loss_type)
-    if opts.loss_type == 'focal_loss':
+    if args.loss_type == 'focal_loss':
         criterion = utils.FocalLoss(ignore_index=255, size_average=True)
-    elif opts.loss_type == 'cross_entropy':
+    elif args.loss_type == 'cross_entropy':
         criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
 
 
@@ -418,17 +394,21 @@ def main():
             "best_score": best_score,
         }, path)
         print("Model saved as %s" % path)
+    # Restore
+    best_score = 0.0
+    cur_itrs = 0
+    cur_epochs = 0
 
     utils.mkdir('checkpoints')
     logging.info("[!] Retrain")
 
-
+    # ==========   Train Loop   ==========#
     denorm = utils.Denormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # denormalization for ori images
 
-    if opts.test_only:
+    if args.test_only:
         model.eval()
-        val_score, ret_samples = validate(
-            opts=args, model=model, loader=val_loader, device=device, metrics=metrics, ret_samples_ids=vis_sample_id)
+        val_score, ret_samples = valid(
+            args=args, model=model, loader=val_loader, device=device, metrics=metrics, ret_samples_ids=vis_sample_id)
         print(metrics.to_str(val_score))
         return
 
@@ -462,44 +442,32 @@ def main():
 
             np_loss = loss.detach().cpu().numpy()
             interval_loss += np_loss
-            if vis is not None:
-                vis.vis_scalar('Loss', cur_itrs, np_loss)
+            # if vis is not None:
+            #     vis.vis_scalar('Loss', cur_itrs, np_loss)
 
             if (cur_itrs) % 10 == 0:
                 interval_loss = interval_loss / 10
                 print("Epoch %d, Itrs %d/%d, Loss=%f" %
-                      (cur_epochs, cur_itrs, opts.total_itrs, interval_loss))
+                      (cur_epochs, cur_itrs, args.total_itrs, interval_loss))
                 interval_loss = 0.0
 
-            if (cur_itrs) % opts.val_interval == 0:
+            if (cur_itrs) % args.val_interval == 0:
                 save_ckpt('checkpoints/latest_%s_%s_os%d.pth' %
-                          (opts.model, opts.dataset, opts.output_stride))
+                          (args.model, args.dataset, args.output_stride))
                 print("validation...")
                 model.eval()
-                val_score, ret_samples = validate(
-                    opts=opts, model=model, loader=val_loader, device=device, metrics=metrics,
-                    ret_samples_ids=vis_sample_id)
+                val_score = valid(
+                    args=args, model=model, valid_queue=val_loader, device=device, metrics=metrics,
+                criterion=criterion)
                 print(metrics.to_str(val_score))
                 if val_score['Mean IoU'] > best_score:  # save best model
                     best_score = val_score['Mean IoU']
                     save_ckpt('checkpoints/best_%s_%s_os%d.pth' %
-                              (opts.model, opts.dataset, opts.output_stride))
-
-                if vis is not None:  # visualize validation score and samples
-                    vis.vis_scalar("[Val] Overall Acc", cur_itrs, val_score['Overall Acc'])
-                    vis.vis_scalar("[Val] Mean IoU", cur_itrs, val_score['Mean IoU'])
-                    vis.vis_table("[Val] Class IoU", val_score['Class IoU'])
-
-                    for k, (img, target, lbl) in enumerate(ret_samples):
-                        img = (denorm(img) * 255).astype(np.uint8)
-                        target = train_dst.decode_target(target).transpose(2, 0, 1).astype(np.uint8)
-                        lbl = train_dst.decode_target(lbl).transpose(2, 0, 1).astype(np.uint8)
-                        concat_img = np.concatenate((img, target, lbl), axis=2)  # concat along width
-                        vis.vis_image('Sample %d' % k, concat_img)
+                              (args.model, args.dataset, args.output_stride))
                 model.train()
             scheduler.step()
 
-            if cur_itrs >= opts.total_itrs:
+            if cur_itrs >= args.total_itrs:
                 return
 
         torch.cuda.synchronize()
