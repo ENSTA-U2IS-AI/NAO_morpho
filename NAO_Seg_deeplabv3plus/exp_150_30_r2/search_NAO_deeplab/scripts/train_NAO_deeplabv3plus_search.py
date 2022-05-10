@@ -78,9 +78,9 @@ parser.add_argument('--child_double_down_channel', type=bool, default=False)
 parser.add_argument('--child_label_smooth', type=float, default=0.1, help='label smoothing')
 parser.add_argument('--child_gamma', type=float, default=0.97, help='learning rate decay')
 parser.add_argument('--child_decay_period', type=int, default=1, help='epochs between two learning rate decays')
-parser.add_argument('--controller_seed_arch', type=int, default=300)#300
+parser.add_argument('--controller_seed_arch', type=int, default=150)#300
 parser.add_argument('--controller_expand', type=int, default=None)
-parser.add_argument('--controller_new_arch', type=int, default=100)#100
+parser.add_argument('--controller_new_arch', type=int, default=50)#100
 parser.add_argument('--controller_encoder_layers', type=int, default=1)
 parser.add_argument('--controller_encoder_hidden_size', type=int, default=64)
 parser.add_argument('--controller_encoder_emb_size', type=int, default=32)
